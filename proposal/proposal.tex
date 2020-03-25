@@ -1,0 +1,81 @@
+%
+% File naacl2019.tex
+%
+%% Based on the style files for ACL 2018 and NAACL 2018, which were
+%% Based on the style files for ACL-2015, with some improvements
+%%  taken from the NAACL-2016 style
+%% Based on the style files for ACL-2014, which were, in turn,
+%% based on ACL-2013, ACL-2012, ACL-2011, ACL-2010, ACL-IJCNLP-2009,
+%% EACL-2009, IJCNLP-2008...
+%% Based on the style files for EACL 2006 by 
+%%e.agirre@ehu.es or Sergi.Balari@uab.es
+%% and that of ACL 08 by Joakim Nivre and Noah Smith
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[hyperref]{naaclhlt2019}
+\usepackage{times}
+\usepackage{latexsym}
+
+\usepackage{url}
+
+\aclfinalcopy % Uncomment this line for the final submission
+%\def\aclpaperid{***} %  Enter the acl Paper ID here
+
+%\setlength\titlebox{5cm}
+% You can expand the titlebox if you need extra space
+% to show all the authors. Please do not make the titlebox
+% smaller than 5cm (the original size); we will check this
+% in the camera-ready version and ask you to change it back.
+
+\newcommand\BibTeX{B{\sc ib}\TeX}
+
+\title{Life-long NLU: Continual Learning of Downstream NLU Tasks}
+
+\author{Mohith Damarapati, Govind Mittal, Chandra Prakash Konkimalla, Aakriti Gupta}
+  % {\tt email@domain} \\\And
+  % Second Author \\
+  % Affiliation / Address line 1 \\
+  % Affiliation / Address line 2 \\
+  % Affiliation / Address line 3 \\
+  % {\tt email@domain} \\}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\vspace{-2cm}
+
+\section{Problem Proposal}
+
+Transformer based language models, like BERT, parallel human level performance in on several NLU tasks.  However, unlike humans, they need to be fine-tuned for each task separately and are prone to catastrophic forgetting like any other connectionist network. Our goal in this work is to investigate if we can enable language models to learn GLUE tasks in a continual learning fashion. We plan to show how serious the catastrophic forgetting problem is and explore approaches from continual learning literature to mitigate it.  
+
+
+\section{Background}
+
+Natural cognitive systems gradually forget previously learned information unlike the catastrophic forgetting observed in current connectionist approaches \cite{french1999catastrophic}. This problem is significant in the domain of natural language understanding (NLU) as well.  Learning a new NLU task without forgetting previous task(s) is a significant problem that needs to be mitigated to achieve general linguistic intelligence. Experiments in Yogatama et al. [2] show that current state-of-the art (SOTA) language models like BERT \cite{DBLP:journals/corr/abs-1810-04805} still require considerable fine tuning on each task before they perform well. They suffer from catastrophic forgetting when trained on multiple tasks in a continual learning (CL) fashion.   Our goal in this work is to address this challenge and investigate approaches to mitigate the catastrophic forgetting problem. 
+
+A more recent language model ERNIE-2.0 \cite{DBLP:journals/corr/abs-1907-12412} which is pre-trained in a continual way performed better than BERT \cite{DBLP:journals/corr/abs-1810-04805} on downstream tasks.  This shows the importance of continual learning techniques in connectionist approaches.  Although similar to BERT 
+\cite{DBLP:journals/corr/abs-1810-04805}, ERNIE-2.0 \cite{DBLP:journals/corr/abs-1907-12412} also needs to be fine-tuned on each of the NLU tasks separately and is prone to catastrophic forgetting.  We argue that after pre-training language models on such a huge corpus, they should possess the capability of learning multiple tasks in a sequential continual setting.  We plan to explore some of the continual strategies given in Parisi et al. \cite{DBLP:journals/corr/abs-1802-07569}.   Elastic Weight Consolidation \cite{DBLP:journals/corr/KirkpatrickPRVD16}, Memory Aware Synapses \cite{aljundi2018memory}, Gradient Episodic Memory \cite{DBLP:journals/corr/Lopez-PazR17} and Synaptic Intelligence \cite{DBLP:journals/corr/ZenkePG17} are the most notable ones.  
+
+We plan to show the magnitude of the catastrophic forgetting problem with the help of metrics like forward transfer, backward transfer and evaluation criteria.  Later, with the help of above mentioned techniques, we hope to improve and prevent negative backward transfer for different combinations of tasks. We will initially start by learning two GLUE tasks (i.e. learn a new task without forgetting the old task) with few continual learning techniques and can extend to more GLUE tasks.
+
+\section{Code}
+We will utilize code from two pre-trained language models: (1) \textbf{BERT} \cite{DBLP:journals/corr/abs-1810-04805} and (2) \textbf{ERNIE-2.0} \cite{DBLP:journals/corr/abs-1907-12412} and from four continual learning strategies: (1) \textbf{Elastic Weight Consolidation} \cite{EWC}, (2) \textbf{Gradient Episodic Memory} \cite{GEM}, (3) \textbf{Memory Aware Synapses} \cite{MAS}, and (4) \textbf{Synaptic Intelligence} \cite{SI}.
+
+
+\section{Evaluation Metrics}
+We will adopt the continual learning evaluation framework of Lopez-Paz et al. \cite{DBLP:journals/corr/Lopez-PazR17}.  We will evaluate and compare all above approaches based on three metrics -- Average Accuracy on all tasks, Backward Transfer to past tasks and Forward Transfer to future tasks.
+
+\section{Data}
+We propose to work in three phases, as follows:
+\begin{itemize}
+  \item \textbf{First Phase (Two low data tasks):} Microsoft Research Paraphrase Corpus (MRPC) (3.7k/1.7k) (paraphrase) and Recognizing Textual Entailment (2.5k/3k) (NLI)
+  \item \textbf{Second Phase (Two high data tasks):} Quora Question Pairs and Mutli Natural Language Inference. 
+  \item \textbf{Final Phase (All tasks):} More than two GLUE tasks (to be chosen later).
+\end{itemize}
+
+\bibliography{proposal}
+\bibliographystyle{acl_natbib}
+
+\end{document}

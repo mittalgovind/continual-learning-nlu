@@ -382,7 +382,7 @@
 % and moving it to the style sheet, rather than within the example tex file. --MM
 \ifaclfinal 
 \else 
-	\addtolength\titlebox{1.1in}
+	\addtolength\titlebox{-1.1in}
 \fi
 % Mostly taken from deproc.
 \def\maketitle{\par
@@ -394,15 +394,15 @@
  \setcounter{footnote}{0}
  \let\maketitle\relax \let\@maketitle\relax
  \gdef\@thanks{}\gdef\@author{}\gdef\@title{}\let\thanks\relax}
-\def\@maketitle{\vbox to \titlebox{ \hsize\textwidth
- \linewidth\hsize \vskip 0.125in minus 0.125in 
+\def\@maketitle{\vbox to \titlebox{ %\hsize\textwidth
+ % \linewidth\hsize \vskip 0.125in minus 0.125in 
  \centering
- {\Large\bf \@title \par} \vskip 0.2in plus 1fil minus 0.1in
+ {\Large\bf \@title \par} \vskip 0.2in %plus 1fil minus 0.1in
  {\def\and{\unskip\enspace{\rm and}\enspace}%
   \def\And{\end{tabular}\hss \egroup \hskip 1in plus 2fil 
            \hbox to 0pt\bgroup\hss \begin{tabular}[t]{c}\bf}%
   \def\AND{\end{tabular}\hss\egroup \hfil\hfil\egroup
-           \vskip 0.25in  plus 1fil minus 0.125in
+          % \vskip 0.25in % plus 1fil minus 0.125in
            \hbox to \linewidth\bgroup\large \hfil\hfil
              \hbox to 0pt\bgroup\hss \begin{tabular}[t]{c}\bf}
   \hbox to \linewidth\bgroup\large \hfil\hfil
@@ -410,15 +410,15 @@
 	\outauthor
    \hss\egroup
     \hfil\hfil\egroup}
-  \vskip 0.3in  plus 2fil minus 0.1in
+  % \vskip 0.3in % plus 2fil minus 0.1in
 }}
 
 % margins and font size for abstract
 \renewenvironment{abstract}%
 		 {\centerline{\large\bf Abstract}%
 		  \begin{list}{}%
-		     {\setlength{\rightmargin}{0.5cm}%
-		      \setlength{\leftmargin}{0.5cm}}%
+		     {\setlength{\rightmargin}{0.2cm}%
+		      \setlength{\leftmargin}{0.2cm}}%
 		   \item[]\ignorespaces%
 		   \@setsize\normalsize{12pt}\xpt\@xpt
 		   }%

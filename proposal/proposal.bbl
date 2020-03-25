@@ -1,0 +1,88 @@
+\begin{thebibliography}{12}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+
+\bibitem[{EWC()}]{EWC}
+
+\newblock Elastic weight consolidation.
+\newblock \url{https://github.com/yashkant/Elastic-Weight-Consolidation}.
+\newblock Accessed: 2020-03-25.
+
+\bibitem[{GEM()}]{GEM}
+
+\newblock Gradient episodic memory.
+\newblock \url{https://github.com/facebookresearch/GradientEpisodicMemory}.
+\newblock Accessed: 2020-03-25.
+
+\bibitem[{MAS()}]{MAS}
+
+\newblock Memory aware synapses.
+\newblock \url{https://github.com/rahafaljundi/MAS-Memory-Aware-Synapses}.
+\newblock Accessed: 2020-03-25.
+
+\bibitem[{SI()}]{SI}
+
+\newblock pathint.
+\newblock \url{https://github.com/MitraDarja/pathint}.
+\newblock Accessed: 2020-03-25.
+
+\bibitem[{Aljundi et~al.(2018)Aljundi, Babiloni, Elhoseiny, Rohrbach, and
+  Tuytelaars}]{aljundi2018memory}
+Rahaf Aljundi, Francesca Babiloni, Mohamed Elhoseiny, Marcus Rohrbach, and
+  Tinne Tuytelaars. 2018.
+\newblock Memory aware synapses: Learning what (not) to forget.
+\newblock In \emph{Proceedings of the European Conference on Computer Vision
+  (ECCV)}, pages 139--154.
+
+\bibitem[{Devlin et~al.(2018)Devlin, Chang, Lee, and
+  Toutanova}]{DBLP:journals/corr/abs-1810-04805}
+Jacob Devlin, Ming{-}Wei Chang, Kenton Lee, and Kristina Toutanova. 2018.
+\newblock \href {http://arxiv.org/abs/1810.04805} {{BERT:} pre-training of deep
+  bidirectional transformers for language understanding}.
+\newblock \emph{CoRR}, abs/1810.04805.
+
+\bibitem[{French(1999)}]{french1999catastrophic}
+Robert~M French. 1999.
+\newblock Catastrophic forgetting in connectionist networks.
+\newblock \emph{Trends in cognitive sciences}, 3(4):128--135.
+
+\bibitem[{Kirkpatrick et~al.(2016)Kirkpatrick, Pascanu, Rabinowitz, Veness,
+  Desjardins, Rusu, Milan, Quan, Ramalho, Grabska{-}Barwinska, Hassabis,
+  Clopath, Kumaran, and Hadsell}]{DBLP:journals/corr/KirkpatrickPRVD16}
+James Kirkpatrick, Razvan Pascanu, Neil~C. Rabinowitz, Joel Veness, Guillaume
+  Desjardins, Andrei~A. Rusu, Kieran Milan, John Quan, Tiago Ramalho, Agnieszka
+  Grabska{-}Barwinska, Demis Hassabis, Claudia Clopath, Dharshan Kumaran, and
+  Raia Hadsell. 2016.
+\newblock \href {http://arxiv.org/abs/1612.00796} {Overcoming catastrophic
+  forgetting in neural networks}.
+\newblock \emph{CoRR}, abs/1612.00796.
+
+\bibitem[{Lopez{-}Paz and Ranzato(2017)}]{DBLP:journals/corr/Lopez-PazR17}
+David Lopez{-}Paz and Marc'Aurelio Ranzato. 2017.
+\newblock \href {http://arxiv.org/abs/1706.08840} {Gradient episodic memory for
+  continuum learning}.
+\newblock \emph{CoRR}, abs/1706.08840.
+
+\bibitem[{Parisi et~al.(2018)Parisi, Kemker, Part, Kanan, and
+  Wermter}]{DBLP:journals/corr/abs-1802-07569}
+German~Ignacio Parisi, Ronald Kemker, Jose~L. Part, Christopher Kanan, and
+  Stefan Wermter. 2018.
+\newblock \href {http://arxiv.org/abs/1802.07569} {Continual lifelong learning
+  with neural networks: {A} review}.
+\newblock \emph{CoRR}, abs/1802.07569.
+
+\bibitem[{Sun et~al.(2019)Sun, Wang, Li, Feng, Tian, Wu, and
+  Wang}]{DBLP:journals/corr/abs-1907-12412}
+Yu~Sun, Shuohuan Wang, Yu{-}Kun Li, Shikun Feng, Hao Tian, Hua Wu, and Haifeng
+  Wang. 2019.
+\newblock \href {http://arxiv.org/abs/1907.12412} {{ERNIE} 2.0: {A} continual
+  pre-training framework for language understanding}.
+\newblock \emph{CoRR}, abs/1907.12412.
+
+\bibitem[{Zenke et~al.(2017)Zenke, Poole, and
+  Ganguli}]{DBLP:journals/corr/ZenkePG17}
+Friedemann Zenke, Ben Poole, and Surya Ganguli. 2017.
+\newblock \href {http://arxiv.org/abs/1703.04200} {Improved multitask learning
+  through synaptic intelligence}.
+\newblock \emph{CoRR}, abs/1703.04200.
+
+\end{thebibliography}
