@@ -29,7 +29,7 @@
 
 \newcommand\BibTeX{B{\sc ib}\TeX}
 
-\title{Life-long NLU: Continual Learning of Downstream NLU Tasks}
+\title{Continual NLU: Enabling language models to learn downstream tasks in a continual way}
 
 \author{Mohith Damarapati, Govind Mittal, Chandra Prakash Konkimalla, Aakriti Gupta}
   % {\tt email@domain} \\\And
@@ -53,7 +53,7 @@ Transformer based language models, like BERT, parallel human level performance i
 
 \section{Background}
 
-Natural cognitive systems gradually forget previously learned information unlike the catastrophic forgetting observed in current connectionist approaches \cite{french1999catastrophic}. This problem is significant in the domain of natural language understanding (NLU) as well.  Learning a new NLU task without forgetting previous task(s) is a significant problem that needs to be mitigated to achieve general linguistic intelligence. Experiments in Yogatama et al. [2] show that current state-of-the art (SOTA) language models like BERT \cite{DBLP:journals/corr/abs-1810-04805} still require considerable fine tuning on each task before they perform well. They suffer from catastrophic forgetting when trained on multiple tasks in a continual learning (CL) fashion.   Our goal in this work is to address this challenge and investigate approaches to mitigate the catastrophic forgetting problem. 
+Natural cognitive systems gradually forget previously learned information unlike the catastrophic forgetting observed in current connectionist approaches \cite{french1999catastrophic}. This problem is significant in the domain of natural language understanding (NLU) as well.  Learning a new NLU task without forgetting previous task(s) is a significant problem that needs to be mitigated to achieve general linguistic intelligence. Experiments in Yogatama et al. \cite{DBLP:journals/corr/abs-1901-11373} show that current state-of-the art (SOTA) language models like BERT \cite{DBLP:journals/corr/abs-1810-04805} still require considerable fine tuning on each task before they perform well. They suffer from catastrophic forgetting when trained on multiple tasks in a continual learning (CL) fashion.   Our goal in this work is to address this challenge and investigate approaches to mitigate the catastrophic forgetting problem. 
 
 A more recent language model ERNIE-2.0 \cite{DBLP:journals/corr/abs-1907-12412} which is pre-trained in a continual way performed better than BERT \cite{DBLP:journals/corr/abs-1810-04805} on downstream tasks.  This shows the importance of continual learning techniques in connectionist approaches.  Although similar to BERT 
 \cite{DBLP:journals/corr/abs-1810-04805}, ERNIE-2.0 \cite{DBLP:journals/corr/abs-1907-12412} also needs to be fine-tuned on each of the NLU tasks separately and is prone to catastrophic forgetting.  We argue that after pre-training language models on such a huge corpus, they should possess the capability of learning multiple tasks in a sequential continual setting.  We plan to explore some of the continual strategies given in Parisi et al. \cite{DBLP:journals/corr/abs-1802-07569}.   Elastic Weight Consolidation \cite{DBLP:journals/corr/KirkpatrickPRVD16}, Memory Aware Synapses \cite{aljundi2018memory}, Gradient Episodic Memory \cite{DBLP:journals/corr/Lopez-PazR17} and Synaptic Intelligence \cite{DBLP:journals/corr/ZenkePG17} are the most notable ones.  
@@ -70,8 +70,8 @@ We will adopt the continual learning evaluation framework of Lopez-Paz et al. \c
 \section{Data}
 We propose to work in three phases, as follows:
 \begin{itemize}
-  \item \textbf{First Phase (Two low data tasks):} Microsoft Research Paraphrase Corpus (MRPC) (3.7k/1.7k) (paraphrase) and Recognizing Textual Entailment (2.5k/3k) (NLI)
-  \item \textbf{Second Phase (Two high data tasks):} Quora Question Pairs and Mutli Natural Language Inference. 
+  \item \textbf{First Phase (Two low data tasks):} Microsoft Research Paraphrase Corpus (training - 3700 / testing - 1700) (paraphrase) and Recognizing Textual Entailment (training - 2500 / testing - 3000) (NLI).
+  \item \textbf{Second Phase (Two high data tasks):} GLUE: Quora Question Pairs and MutliNLI.
   \item \textbf{Final Phase (All tasks):} More than two GLUE tasks (to be chosen later).
 \end{itemize}
 

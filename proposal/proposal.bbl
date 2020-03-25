@@ -1,4 +1,4 @@
-\begin{thebibliography}{12}
+\begin{thebibliography}{13}
 \expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
 
 \bibitem[{EWC()}]{EWC}
@@ -77,6 +77,16 @@ Yu~Sun, Shuohuan Wang, Yu{-}Kun Li, Shikun Feng, Hao Tian, Hua Wu, and Haifeng
 \newblock \href {http://arxiv.org/abs/1907.12412} {{ERNIE} 2.0: {A} continual
   pre-training framework for language understanding}.
 \newblock \emph{CoRR}, abs/1907.12412.
+
+\bibitem[{Yogatama et~al.(2019)Yogatama, de~Masson~d'Autume, Connor,
+  Kocisk{\'{y}}, Chrzanowski, Kong, Lazaridou, Ling, Yu, Dyer, and
+  Blunsom}]{DBLP:journals/corr/abs-1901-11373}
+Dani Yogatama, Cyprien de~Masson~d'Autume, Jerome Connor, Tom{\'{a}}s
+  Kocisk{\'{y}}, Mike Chrzanowski, Lingpeng Kong, Angeliki Lazaridou, Wang
+  Ling, Lei Yu, Chris Dyer, and Phil Blunsom. 2019.
+\newblock \href {http://arxiv.org/abs/1901.11373} {Learning and evaluating
+  general linguistic intelligence}.
+\newblock \emph{CoRR}, abs/1901.11373.
 
 \bibitem[{Zenke et~al.(2017)Zenke, Poole, and
   Ganguli}]{DBLP:journals/corr/ZenkePG17}
