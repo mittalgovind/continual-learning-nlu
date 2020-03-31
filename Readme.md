@@ -1,1 +1,0 @@
-python main.py --data_dir="./data" --task_params="example_task.json" --cuda --tokenizer_name="bert" --do_lower_case --model_typ="bert-base-uncased" --output_dir='out'
