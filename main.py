@@ -8,6 +8,7 @@ import json
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from arguments import parse_args
 from tqdm import tqdm, trange
+from collections import OrderedDict 
 
 from transformers import (
     MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING,
@@ -43,7 +44,29 @@ def set_seed(seed, n_gpu):
 		torch.cuda.manual_seed_all(seed)
 
 
-def train(args, train_dataset, task, prev_tasks, model, tokenizer):
+def save_model(args, task_num, model):
+
+	if not os.path.exists(args.output_dir): 
+		os.makedirs(args.output_dir)
+
+	task_paramters = OrderedDict()
+	bert_paramters = model.state_dict().copy()
+
+	for layer, weights in bert_paramters.items():
+		if layer == "classifier.weight" or layer == 'classifier.bias':
+			task_paramters[layer] = weights
+	del bert_paramters["classifier.weight"]
+	del bert_paramters['classifier.bias']
+
+	torch.save(bert_paramters, os.path.join(args.output_dir, "bert_paramters_" + str(task_num) + ".pt"))
+	torch.save(task_paramters, os.path.join(args.output_dir, "task_paramters_" + str(task_num) + ".pt"))
+
+	print()
+	print("***** Parameters Saved for task", task_num ,"*****")
+	print()
+
+
+def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer):
 	""" Train the model """
 	tb_writer = SummaryWriter()
 
@@ -100,12 +123,12 @@ def train(args, train_dataset, task, prev_tasks, model, tokenizer):
 
 			model.train()
 			batch = tuple(t.to(args.device) for t in batch)
-			inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
-			if args.model_type != "distilbert":
+			inputs = {"input_ids": batch[0], "attention_mask": batch[1],"token_type_ids":batch[2] , "labels": batch[3]}
+			'''if args.model_type != "distilbert":
 				inputs["token_type_ids"] = (
 					batch[2] if args.model_type in ["bert", "xlnet", "albert"] else None
-				)  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
-			outputs = model(task, **inputs)
+				)'''  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
+			outputs = model(**inputs)
 			loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
 
 			if args.n_gpu > 1:
@@ -114,7 +137,6 @@ def train(args, train_dataset, task, prev_tasks, model, tokenizer):
 
 			tr_loss += loss.item()
 		
-			
 			torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
 
 			optimizer.step()
@@ -122,43 +144,51 @@ def train(args, train_dataset, task, prev_tasks, model, tokenizer):
 			model.zero_grad()
 			global_step += 1
 
-			if args.logging_steps > 0 and global_step % args.logging_steps == 0:
-				logs = {}
-				for prev_task in prev_tasks:
-					evaluate(args, model, prev_task, tokenizer, "Previous Task(Continual)")
-				results = evaluate(args, model, task, tokenizer, "Current Task")
-				for key, value in results.items():
-					eval_key = "eval_{}".format(key)
-					logs[eval_key] = value
+	logs = {}
 
-				loss_scalar = (tr_loss - logging_loss) / args.logging_steps
-				learning_rate_scalar = scheduler.get_lr()[0]
-				logs["learning_rate"] = learning_rate_scalar
-				logs["loss"] = loss_scalar
-				logging_loss = tr_loss
+	results = evaluate(args, model, task, tokenizer, "Current Task")
+	for key, value in results.items():
+		eval_key = "eval_{}".format(key)
+		logs[eval_key] = value
 
-				for key, value in logs.items():
-					tb_writer.add_scalar(key, value, global_step)
-				print(json.dumps({**logs, **{"step": global_step}}))
+	loss_scalar = (tr_loss - logging_loss) / args.logging_steps
+	learning_rate_scalar = scheduler.get_lr()[0]
+	logs["learning_rate"] = learning_rate_scalar
+	logs["loss"] = loss_scalar
+	logging_loss = tr_loss
 
-			if args.save_steps > 0 and global_step % args.save_steps == 0:
-				# Save model checkpoint
-				output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))
-				if not os.path.exists(output_dir): os.makedirs(output_dir)
+	for key, value in logs.items():
+		tb_writer.add_scalar(key, value, global_step)
+	print(json.dumps({**logs, **{"step": global_step}}))
 
-				model_to_save = (
-					model.module if hasattr(model, "module") else model
-				)  
-				# Take care of distributed/parallel training
-				model_to_save.save_pretrained(output_dir)
-				tokenizer.save_pretrained(output_dir)
+	'''if args.save_steps > 0 and global_step % args.save_steps == 0:
+		# Save model checkpoint
+		output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))
+		if not os.path.exists(output_dir): os.makedirs(output_dir)
 
-				torch.save(args, os.path.join(output_dir, "training_args.bin"))
-				logger.info("Saving model checkpoint to %s", output_dir)
+		model_to_save = (
+			model.module if hasattr(model, "module") else model
+		)  
+		# Take care of distributed/parallel training
+		model_to_save.save_pretrained(output_dir)
+		tokenizer.save_pretrained(output_dir)
 
-				torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
-				torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
-				logger.info("Saving optimizer and scheduler states to %s", output_dir)
+		torch.save(args, os.path.join(output_dir, "training_args.bin"))
+		logger.info("Saving model checkpoint to %s", output_dir)
+
+		torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
+		torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
+		logger.info("Saving optimizer and scheduler states to %s", output_dir)'''
+
+	save_model(args, task_num, model)
+
+	#Evaluating on all tasks - both forward and backward transfer
+
+	for i in range(len(all_tasks)):
+		#Previous tasks
+		if (i < task_num):
+			model.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")), strict=False)
+			evaluate(args, model, all_tasks[i], tokenizer, "Previous Task (Continual)")
 
 	tb_writer.close()
 
@@ -195,12 +225,12 @@ def evaluate(args, model, task, tokenizer, prefix=""):
 			batch = tuple(t.to(args.device) for t in batch)
 
 			with torch.no_grad():
-				inputs = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
-				if args.model_type != "distilbert":
+				inputs = {"input_ids": batch[0], "attention_mask": batch[1],"token_type_ids":batch[2] , "labels": batch[3]}
+				'''if args.model_type != "distilbert":
 					inputs["token_type_ids"] = (
 						batch[2] if args.model_type in ["bert", "xlnet", "albert"] else None
-					)  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
-				outputs = model(task, **inputs)
+					)  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids '''
+				outputs = model(**inputs)
 				tmp_eval_loss, logits = outputs[:2]
 
 				eval_loss += tmp_eval_loss.mean().item()
@@ -280,6 +310,8 @@ def main():
 	if args.n_gpu > 1:
 		model = torch.nn.DataParallel(model)
 
+
+
 	# Prepare GLUE tasks
 	processors = {}
 	output_modes = {}
@@ -299,6 +331,7 @@ def main():
 							# args.config_name if args.config_name else args.model_name_or_path,
 							num_labels=num_label_list[key],
 							finetuning_task=key,
+							cache_dir=None,
 						)
 
 	# Tokenizer
@@ -308,20 +341,27 @@ def main():
 		cache_dir=None,
 	)
 
-	# Model
-	model = BertForContinualFineTuning(configs[list(configs.keys())[0]])
-	model.load_pretrained(configs, args.device)
-	model.to(args.device)
-
 	# Continual Learning
 	n = len(configs)
 	accuracy_matrix = np.zeros((n,n))
-	tasks = list(args.task_params.keys())
 
+	tasks = list(args.task_params.keys())
+	models = []
+	# Model
+	for key in args.task_params:
+		models.append((key, AutoModelForSequenceClassification.from_pretrained(args.model_type)))
 	for i in range(n):
+		models[i][1].to(args.device)
+		save_model(args, i, models[i][1])
+
+
+	for i in range(len(configs)):
+		if (i>0):
+			#Always load the BERT parameters of previous model
+			models[i][1].load_state_dict(torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i-1) + ".pt")), strict=False)
 		new_args = convert_dict(args.task_params[tasks[i]], args)
 		train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
-		global_step, tr_loss = train(new_args, train_dataset, tasks[i], tasks[:i], model, tokenizer)
+		global_step, tr_loss = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer)
 		logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
 
