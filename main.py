@@ -66,7 +66,7 @@ def save_model(args, task_num, model):
 	print()
 
 
-def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer):
+def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix):
 	""" Train the model """
 	tb_writer = SummaryWriter()
 
@@ -146,10 +146,13 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer):
 
 	logs = {}
 
-	results = evaluate(args, model, task, tokenizer, "Current Task")
-	for key, value in results.items():
-		eval_key = "eval_{}".format(key)
-		logs[eval_key] = value
+	results = evaluate(args, model, task, tokenizer, accuracy_matrix, task_num, task_num, "Current Task")
+	
+	#for key, value in results.items():
+	#	eval_key = "eval_{}".format(key)
+	#	logs[eval_key] = value
+
+	#print(results)
 
 	loss_scalar = (tr_loss - logging_loss) / args.logging_steps
 	learning_rate_scalar = scheduler.get_lr()[0]
@@ -188,14 +191,20 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer):
 		#Previous tasks
 		if (i < task_num):
 			model.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")), strict=False)
-			evaluate(args, model, all_tasks[i], tokenizer, "Previous Task (Continual)")
+			results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num, i, "Previous Task (Continual)")
+		#Future tasks
+		elif (i > task_num):
+			model.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")), strict=False)
+			results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num, i, "Future Task (Continual)")
+
+
 
 	tb_writer.close()
 
-	return global_step, tr_loss / global_step
+	return global_step, tr_loss / global_step , accuracy_matrix
 
 
-def evaluate(args, model, task, tokenizer, prefix=""):
+def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, current_task_num, prefix=""):
 	# Loop to handle MNLI double evaluation (matched, mis-matched)
 	eval_task_names = ("mnli", "mnli-mm") if task == "mnli" else (task,)
 	eval_outputs_dirs = (args.output_dir, args.output_dir + "-MM") if task == "mnli" else (args.output_dir,)
@@ -253,11 +262,13 @@ def evaluate(args, model, task, tokenizer, prefix=""):
 		output_eval_file = os.path.join(eval_output_dir, prefix, "eval_results.txt")
 		with open(output_eval_file, "w") as writer:
 			logger.info("***** Eval results {} *****".format(prefix))
-			for key in sorted(result.keys()):
-				logger.info("  %s = %s", key, str(result[key]))
-				writer.write("%s = %s\n" % (key, str(result[key])))
+			print(result)
+			accuracy_matrix[train_task_num][current_task_num] = format(result['acc'],".2f")
+			#for key in sorted(result.keys()):
+			#	logger.info("  %s = %s", key, str(result[key]))
+			#	writer.write("%s = %s\n" % (key, str(result[key])))
 
-	return results
+	return results, accuracy_matrix
 
 
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
@@ -344,6 +355,7 @@ def main():
 	# Continual Learning
 	n = len(configs)
 	accuracy_matrix = np.zeros((n,n))
+	transfer_matrix = np.zeros((n,n))
 
 	tasks = list(args.task_params.keys())
 	models = []
@@ -361,8 +373,26 @@ def main():
 			models[i][1].load_state_dict(torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i-1) + ".pt")), strict=False)
 		new_args = convert_dict(args.task_params[tasks[i]], args)
 		train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
-		global_step, tr_loss = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer)
+		global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix)
 		logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+
+	print()
+	print("***** Accuracy Matrix *****")
+	print()
+
+	print(accuracy_matrix)
+
+	print()
+	print("***** Transfer Matrix *****")
+	print("Future Transfer => Upper Triangular Matrix  ||  Backward Transfer => Lower Triangular Matrix")
+	print()
+
+	for i in range(n):
+		for j in range(n):
+			transfer_matrix[j][i] = accuracy_matrix[j][i] - accuracy_matrix[i][i]
+
+	print(transfer_matrix)
+
 
 
 
