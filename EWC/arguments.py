@@ -6,7 +6,7 @@ def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--data_dir", 
 						type=str,
-						default="./data",
+						default="../data",
 						required=True,
 						)
 	parser.add_argument("--task_params", 
