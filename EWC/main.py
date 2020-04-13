@@ -7,6 +7,7 @@ import json
 from torch.nn import functional as F
 from torch import autograd
 from torch.autograd import Variable
+from torch.utils.data.dataloader import default_collate
 
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from arguments import parse_args
@@ -67,7 +68,7 @@ def save_model(args, task_num, model):
 	print("***** Parameters Saved for task", task_num ,"*****")
 	print()
 
-def compute_ewc_loss(model, lamda, consolidate_mean, consolidate_fisher):
+def compute_ewc_loss(model, lamda, task, consolidate_fisher, consolidate_mean):
 
 	#EWC Loss is computed only on BERT parameters (not on task specific parameters)
 	bert_paramters = model.state_dict().copy()
@@ -76,26 +77,45 @@ def compute_ewc_loss(model, lamda, consolidate_mean, consolidate_fisher):
 
 	loss_list = []
 	for name, params in bert_paramters:
-		mean = Variable(consolidate_mean[name])
-		fisher = Variable(consolidate_fisher[name])
+		mean = Variable(consolidate_mean[task][name])
+		fisher = Variable(consolidate_fisher[task][name])
 		loss_list.append( (fisher * (params-mean)**2).sum() )
 
 	return (lamda/2)*sum(loss_list)
 
-def estimate_fisher(train_dataset, fisher_sample_size, batch_size=32):
+def estimate_fisher_mean(train_dataset, model, task, fisher_sample_size, batch_size=32, collate_fn=None):
 
-	data_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=(collate_fn or default_collate))
+	data_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
+		collate_fn=(collate_fn or default_collate), **({'num_workers': 2, 'pin_memory': True}))
 	loglikelihood_list = []
 
 	for x, y in data_loader:
 		x = x.view(batch_size, -1)
 		x = Variable(x).to(args.device)
 		y = Variable(y).to(args.device)
-		loglikelihood_list.append(F.log_softmax(self(x), dim=1)[range(batch_size), y.data])
+		x = tuple(t.to(args.device) for t in x)
+		inputs = {"input_ids": x[0], "attention_mask": x[1],"token_type_ids":x[2] , "labels": x[3]}
+		outputs = model(**inputs)
+		logits = outputs[1]
+		loglikelihood_list.append(F.log_softmax(logits, dim=1)[range(batch_size), y.data])
+		if (len(loglikelihood_list) >= fisher_sample_size // batch_size):
+			break
+	loglikelihood_list = torch.cat(loglikelihood_list).unbind()
+	loglikelihood_grads = zip(*[autograd.grad(l, model.parameters(), retain_graph = (i < len(loglikelihood_list))) for i, l in enumerate(loglikelihood_list, 1)])
+	loglikelihood_grads = [torch.stack(gs) for gs in loglikelihood_grads]
+	fisher_diagonals = [(g ** 2).mean(0) for g in loglikelihood_grads]
 
 
+	param_names = [n for n, p in model.named_parameters()]
+	for n, p in model.named_parameters():
+		mean_consolidate[task][n] = p.data.clone()
+	for n, f in zip(param_names, fisher_diagonals):
+		fisher_consolidate[task][n] = f.data.clone()
 
-def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix):
+	return fisher_consolidate, mean_consolidate
+
+
+def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean):
 	""" Train the model """
 	tb_writer = SummaryWriter()
 
@@ -165,11 +185,8 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 			
 			#Compute EWC loss & Update the total loss (For first task it is just zero)
 			if task_num > 0:
-				ewc_loss = compute_ewc_loss(model)
-			else:
-				ewc_loss = Variable(torch.zeros(1)).to(args.device)
-
-			loss += ewc_loss
+				ewc_loss = compute_ewc_loss(model, lamda, task, consolidate_fisher, consolidate_mean)
+				loss += ewc_loss
 
 			loss.backward()
 
@@ -408,21 +425,23 @@ def main():
 
 	fisher_sample_size = 512
 
+	consolidate_fisher = {}
+	consolidate_mean = {}
+
 	for i in range(len(configs)):
 		if (i>0):
 			#Always load the BERT parameters of previous model
 			models[i][1].load_state_dict(torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i-1) + ".pt")), strict=False)
 		new_args = convert_dict(args.task_params[tasks[i]], args)
 		train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
-		global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix)
+		global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean)
 		logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
 		#Elastic Weight Consolidation Steps
 
-		#Estimate Fisher Matrix
-		fisher_matrix = estimate_fisher(train_dataset, fisher_sample_size, batch_size)
-
-		#Consolidate Weights
+		#Estimate Fisher Matrix & Consolidate
+		batch_size = 32
+		consolidate_fisher, consolidate_mean = estimate_fisher_mean(train_dataset, models[i][1], tasks[i], fisher_sample_size, batch_size)
 
 
 	print()

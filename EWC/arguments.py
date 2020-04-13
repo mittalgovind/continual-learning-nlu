@@ -43,6 +43,10 @@ def parse_args():
 						default=128,
 						type=int,
 						)
+	parser.add_argument("--num_train_epochs",
+						default=1,
+						type=int,
+						)
 	args = parser.parse_args()
 	with open(args.task_params) as file:
 		args.task_params = json.load(file)
