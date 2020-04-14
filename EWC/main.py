@@ -83,18 +83,20 @@ def compute_ewc_loss(model, lamda, task, consolidate_fisher, consolidate_mean):
 
 	return (lamda/2)*sum(loss_list)
 
-def estimate_fisher_mean(train_dataset, model, task, fisher_sample_size, batch_size=32, collate_fn=None):
+def estimate_fisher_mean(args, train_dataset, model, task, fisher_sample_size, fisher_consolidate, mean_consolidate, batch_size=1, collate_fn=None):
 
 	data_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
-		collate_fn=(collate_fn or default_collate), **({'num_workers': 2, 'pin_memory': True}))
+		collate_fn=(collate_fn or default_collate))
 	loglikelihood_list = []
 
-	for x, y in data_loader:
+	for x, p, q, y in data_loader:
 		x = x.view(batch_size, -1)
 		x = Variable(x).to(args.device)
 		y = Variable(y).to(args.device)
-		x = tuple(t.to(args.device) for t in x)
-		inputs = {"input_ids": x[0], "attention_mask": x[1],"token_type_ids":x[2] , "labels": x[3]}
+		p = Variable(p).to(args.device)
+		q = Variable(q).to(args.device)
+		#x = tuple(t.to(args.device) for t in x)
+		inputs = {"input_ids": x, "attention_mask": p,"token_type_ids":q , "labels": y}
 		outputs = model(**inputs)
 		logits = outputs[1]
 		loglikelihood_list.append(F.log_softmax(logits, dim=1)[range(batch_size), y.data])
@@ -440,8 +442,8 @@ def main():
 		#Elastic Weight Consolidation Steps
 
 		#Estimate Fisher Matrix & Consolidate
-		batch_size = 32
-		consolidate_fisher, consolidate_mean = estimate_fisher_mean(train_dataset, models[i][1], tasks[i], fisher_sample_size, batch_size)
+		batch_size = 1
+		consolidate_fisher, consolidate_mean = estimate_fisher_mean(new_args, train_dataset, models[i][1], tasks[i], fisher_sample_size, consolidate_fisher, consolidate_mean, batch_size)
 
 
 	print()
