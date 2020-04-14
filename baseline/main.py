@@ -31,7 +31,7 @@ except ImportError:
 
 
 from utils import convert_dict
-from models.bert_finetuning import BertForContinualFineTuning
+#from models.bert_finetuning import BertForContinualFineTuning
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ def save_model(args, task_num, model):
 
 def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix):
 	""" Train the model """
+	set_seed(args.seed, args.n_gpu)
 	tb_writer = SummaryWriter()
 
 	args.train_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
@@ -110,7 +111,6 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 	train_iterator = trange(
 		epochs_trained, int(args.num_train_epochs), desc="Epoch", disable=False,
 	)
-	set_seed(args.seed, args.n_gpu)
 	
 	for _ in train_iterator:
 		epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
@@ -308,6 +308,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 
 
 def main():
+
 	args = parse_args()
 
 	# Setup logging
