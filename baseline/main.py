@@ -40,6 +40,7 @@ def set_seed(seed, n_gpu):
 	random.seed(seed)
 	np.random.seed(seed)
 	torch.manual_seed(seed)
+	torch.cuda.manual_seed(seed)
 	if n_gpu > 0:
 		torch.cuda.manual_seed_all(seed)
 
@@ -68,11 +69,10 @@ def save_model(args, task_num, model):
 
 def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix):
 	""" Train the model """
-	set_seed(args.seed, args.n_gpu)
 	tb_writer = SummaryWriter()
 
 	args.train_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
-	train_sampler = RandomSampler(train_dataset)
+	train_sampler = SequentialSampler(train_dataset)
 	train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 	t_total = len(train_dataloader) * args.num_train_epochs
 
@@ -112,6 +112,8 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 		epochs_trained, int(args.num_train_epochs), desc="Epoch", disable=False,
 	)
 	
+	set_seed(args.seed, args.n_gpu)
+
 	for _ in train_iterator:
 		epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
 		for step, batch in enumerate(epoch_iterator):
@@ -311,6 +313,9 @@ def main():
 
 	args = parse_args()
 
+	print(args)
+
+	
 	# Setup logging
 	logging.basicConfig(
 		format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -322,7 +327,7 @@ def main():
 	if args.n_gpu > 1:
 		model = torch.nn.DataParallel(model)
 
-
+	set_seed(args.seed, args.n_gpu)
 
 	# Prepare GLUE tasks
 	processors = {}
@@ -367,16 +372,17 @@ def main():
 		models[i][1].to(args.device)
 		save_model(args, i, models[i][1])
 
-
 	for i in range(len(configs)):
 		if (i>0):
 			#Always load the BERT parameters of previous model
 			models[i][1].load_state_dict(torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i-1) + ".pt")), strict=False)
 		new_args = convert_dict(args.task_params[tasks[i]], args)
 		train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
+		# --- No randomness till here --- 
 		global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix)
 		logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
+	
 	print()
 	print("***** Accuracy Matrix *****")
 	print()
@@ -393,8 +399,8 @@ def main():
 			transfer_matrix[j][i] = accuracy_matrix[j][i] - accuracy_matrix[i][i]
 
 	print(transfer_matrix)
-
-
+	
+	
 
 
 if __name__ == '__main__':

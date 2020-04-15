@@ -47,6 +47,11 @@ def parse_args():
 						default=1,
 						type=int,
 						)
+	parser.add_argument("--seed",
+						default=42,
+						type=int,
+						)
+
 	args = parser.parse_args()
 	with open(args.task_params) as file:
 		args.task_params = json.load(file)

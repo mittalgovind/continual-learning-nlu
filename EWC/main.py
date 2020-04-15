@@ -336,7 +336,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 	processor = glue_processors[task]()
 	output_mode = glue_output_modes[task]
-	#data_size = 8 #To take low GPU memory 
+	data_size = 8 #To take low GPU memory 
 	logger.info("Creating features from dataset file at %s", args.data_dir)
 	label_list = processor.get_labels()
 	if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
@@ -365,8 +365,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 	elif output_mode == "regression":
 		all_labels = torch.tensor([f.label for f in features], dtype=torch.float)
 
-	dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
-	#dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
+	dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
 	return dataset
 
 

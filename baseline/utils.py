@@ -8,7 +8,10 @@ class AttrDict(dict):
 def convert_dict(config, args):
 	out = AttrDict()
 	out.update(config)
-	out.update({"n_gpu" : args.n_gpu,
+	out.update({
+				"num_train_epochs" : args.num_train_epochs,
+				"seed" : args.seed,
+				"n_gpu" : args.n_gpu,
 				"per_gpu_batch_size" : args.per_gpu_batch_size,
 				"warmup_steps" : 0,
 				"model_name_or_path" : "",
