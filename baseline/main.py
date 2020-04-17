@@ -72,7 +72,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 	tb_writer = SummaryWriter()
 
 	args.train_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
-	train_sampler = SequentialSampler(train_dataset)
+	train_sampler = RandomSampler(train_dataset)
 	train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 	t_total = len(train_dataloader) * args.num_train_epochs
 
@@ -220,7 +220,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 
 		args.eval_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
 		# Note that DistributedSampler samples randomly
-		eval_sampler = SequentialSampler(eval_dataset)
+		eval_sampler = RandomSampler(eval_dataset)
 		eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
 		# Eval!

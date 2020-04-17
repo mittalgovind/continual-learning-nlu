@@ -44,6 +44,7 @@ def set_seed(seed, n_gpu):
 	random.seed(seed)
 	np.random.seed(seed)
 	torch.manual_seed(seed)
+	torch.cuda.manual_seed(seed)
 	if n_gpu > 0:
 		torch.cuda.manual_seed_all(seed)
 
@@ -69,28 +70,38 @@ def save_model(args, task_num, model):
 	print("***** Parameters Saved for task", task_num ,"*****")
 	print()
 
-def compute_ewc_loss(model, lamda, task, consolidate_fisher, consolidate_mean):
+def compute_ewc_loss(args, lamda, task_num, task, model, consolidate_fisher, consolidate_mean):
 	#EWC Loss is computed only on BERT parameters (not on task specific parameters)
 	bert_paramters = model.state_dict().copy()
 	del bert_paramters["classifier.weight"]
 	del bert_paramters['classifier.bias']
 
-	loss_list = []
+	loss_ewc = 0
 	for name, params in bert_paramters.items():
 		mean = Variable(consolidate_mean[task][name])
 		fisher = Variable(consolidate_fisher[task][name])
-		loss_list.append( (fisher * (params-mean)**2).sum() )
+		loss_ewc_layer = fisher * (params - mean)**2
+		loss_ewc += loss_ewc_layer.sum()
 
-	return (lamda/2)*sum(loss_list)
+	return (lamda/2)*loss_ewc
 
-def estimate_fisher_mean(args, train_dataset, model, task, fisher_sample_size, fisher_consolidate, mean_consolidate, batch_size=32, collate_fn=None):
+def estimate_fisher_mean(args, train_dataset, model, task, fisher_consolidate, mean_consolidate, batch_size=32, collate_fn=None):
+	set_seed(args.seed, args.n_gpu)
+	data_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=(collate_fn or default_collate))
 
-	data_loader =  DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
-		collate_fn=(collate_fn or default_collate))
-	loglikelihood_list = []
+	mean_consolidate[task] = {}
+	fisher_consolidate[task] = {}
+
+	for n, p in model.named_parameters():
+		mean_consolidate[task][n] = Variable(p.data.to(args.device))
+
+	for n, p in model.named_parameters():
+		fisher_consolidate[task][n] =  Variable(torch.zeros(p.size()).to(args.device))
+
+	model.eval()
 	#new_model = copy.deepcopy(model).cpu()
 	for x, p, q, y in data_loader:
-		x = x.view(batch_size, -1)
+		model.zero_grad()
 		x = Variable(x).to(args.device)
 		y = Variable(y).to(args.device)
 		p = Variable(p).to(args.device)
@@ -98,23 +109,11 @@ def estimate_fisher_mean(args, train_dataset, model, task, fisher_sample_size, f
 		#x = tuple(t.to(args.device) for t in x)
 		inputs = {"input_ids": x, "attention_mask": p,"token_type_ids":q , "labels": y}
 		outputs = model(**inputs)
-		logits = outputs[1]
-		loglikelihood_list.append(F.log_softmax(logits, dim=1)[range(batch_size), y.data])
-		if (len(loglikelihood_list) >= fisher_sample_size // batch_size):
-			break
-	loglikelihood_list = torch.cat(loglikelihood_list).unbind()
-	loglikelihood_grads = zip(*[autograd.grad(l, model.parameters(), retain_graph = (i < len(loglikelihood_list)), allow_unused=True) for i, l in enumerate(loglikelihood_list, 1)])
-	loglikelihood_grads = [torch.stack(gs) for gs in loglikelihood_grads]
-	fisher_diagonals = [(g ** 2).mean(0) for g in loglikelihood_grads]
-
-	mean_consolidate[task] = {}
-	fisher_consolidate[task] = {}
-
-	param_names = [n for n, p in model.named_parameters()]
-	for n, p in model.named_parameters():
-		mean_consolidate[task][n] = p.data.clone()
-	for n, f in zip(param_names, fisher_diagonals):
-		fisher_consolidate[task][n] = f.data.clone()
+		loss = outputs[0]
+		loss.backward()
+		for n, p in model.named_parameters():
+			fisher_consolidate[task][n].data += p.grad.data ** 2 / len(train_dataset)
+	fisher_consolidate[task] = {n: p for n,p in fisher_consolidate[task].items()}
 
 	return fisher_consolidate, mean_consolidate
 
@@ -122,7 +121,6 @@ def estimate_fisher_mean(args, train_dataset, model, task, fisher_sample_size, f
 def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean):
 	""" Train the model """
 	tb_writer = SummaryWriter()
-
 	args.train_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
 	train_sampler = RandomSampler(train_dataset)
 	train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
@@ -190,8 +188,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 			#Compute EWC loss & Update the total loss (For first task it is just zero)
 			if task_num > 0:
 				lamda = 40
-				ewc_loss = compute_ewc_loss(model, lamda, all_tasks[task_num-1], consolidate_fisher, consolidate_mean)
+				ewc_loss = compute_ewc_loss(args, lamda, task_num, all_tasks[task_num-1], model, consolidate_fisher, consolidate_mean)
 				loss += ewc_loss
+				#cd ..print()
+				print("************", ewc_loss, "*************")
+				#print()
 
 			loss.backward()
 
@@ -257,13 +258,9 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 			model.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")), strict=False)
 			results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num, i, "Future Task (Continual)")
 
-	print()
-	print("***** Estimating Diagonals of Fisher Information Matrix *****")
-	print()
-
 	tb_writer.close()
 
-	return global_step, tr_loss / global_step , accuracy_matrix
+	return global_step, tr_loss / global_step , accuracy_matrix, model
 
 
 def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, current_task_num, prefix=""):
@@ -280,7 +277,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 
 		args.eval_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
 		# Note that DistributedSampler samples randomly
-		eval_sampler = SequentialSampler(eval_dataset)
+		eval_sampler = RandomSampler(eval_dataset)
 		eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
 		# Eval!
@@ -336,7 +333,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 	processor = glue_processors[task]()
 	output_mode = glue_output_modes[task]
-	data_size = 8 #To take low GPU memory 
+	#data_size = 8 #To take low GPU memory 
 	logger.info("Creating features from dataset file at %s", args.data_dir)
 	label_list = processor.get_labels()
 	if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
@@ -365,7 +362,8 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 	elif output_mode == "regression":
 		all_labels = torch.tensor([f.label for f in features], dtype=torch.float)
 
-	dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
+	dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
+	#dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
 	return dataset
 
 
@@ -383,7 +381,7 @@ def main():
 	if args.n_gpu > 1:
 		model = torch.nn.DataParallel(model)
 
-
+	set_seed(args.seed, args.n_gpu)
 
 	# Prepare GLUE tasks
 	processors = {}
@@ -428,8 +426,6 @@ def main():
 		models[i][1].to(args.device)
 		save_model(args, i, models[i][1])
 
-	fisher_sample_size = 512
-
 	consolidate_fisher = {}
 	consolidate_mean = {}
 
@@ -441,15 +437,23 @@ def main():
 		train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
 		print(len(train_dataset))
 		#print(len(train_dataset[0:100]))
-		global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean)
+		global_step, tr_loss, accuracy_matrix, model = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i, tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean)
 		logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
 		#Elastic Weight Consolidation Steps
-
+		batch_size = 8
 		#Estimate Fisher Matrix & Consolidate
-		batch_size = 2
-		consolidate_fisher, consolidate_mean = estimate_fisher_mean(new_args, train_dataset, models[i][1], tasks[i], fisher_sample_size, consolidate_fisher, consolidate_mean, batch_size)
 
+		if (i == len(configs)-1):
+			print()
+			print ("***** Last Task : No need to estimate fisher matrix *****")
+			print()
+			break
+		else:
+			print()
+			print("***** Estimating Diagonals of Fisher Information Matrix *****")
+			print()
+			consolidate_fisher, consolidate_mean = estimate_fisher_mean(new_args, train_dataset, model, tasks[i], consolidate_fisher, consolidate_mean, batch_size)
 
 	print()
 	print("***** Accuracy Matrix *****")
