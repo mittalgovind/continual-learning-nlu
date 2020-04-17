@@ -68,7 +68,7 @@ def save_model(args, task_num, model):
     print()
 
 
-def initialize_reg_params(model, freeze_layers=[]):
+def initialize_importance_params(model, freeze_layers=[]):
     """initialize an omega for each parameter to zero"""
     reg_params = {}
     for name, param in model.named_parameters():
@@ -84,7 +84,9 @@ def initialize_reg_params(model, freeze_layers=[]):
     return reg_params
 
 
-def compute_importance(train_dataset, fisher_sample_size, batch_size=32):
+def update_importance_params(train_dataset, fisher_sample_size, batch_size=32):
+
+def 
 
 def compute_mas_loss(model, lamda=0.1, consolidate_gradients,  ):
     """Compute the MAS loss by using the Omega,  parameters and lambda"""
