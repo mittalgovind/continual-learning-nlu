@@ -1,0 +1,22 @@
+{
+	"mnli": 
+	{
+		"learning_rate": 5e-5,
+		"weight_decay" : 0.0,
+		"adam_epsilon" : 1e-8,
+		"max_grad_norm": 1.0,
+		"logging_steps": 500,
+		"save_steps": 500,
+		"output_mode" : "classification"
+	},
+	"qqp": 
+	{
+		"learning_rate": 5e-5,
+		"weight_decay" : 0.0,
+		"adam_epsilon" : 1e-8,
+		"max_grad_norm": 1.0,
+		"logging_steps": 500,
+		"save_steps": 500,
+		"output_mode" : "classification"
+	}
+}
