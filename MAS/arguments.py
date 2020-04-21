@@ -51,6 +51,8 @@ def parse_args():
 						default=42,
 						type=int,
 						)
+	parser.add_argument('--init_lr', default=0.001, type=float, help='Initial learning rate for training the model')
+	parser.add_argument('--reg_lambda', default=0.01, type=float, help='Regularization parameter')
 
 	args = parser.parse_args()
 	with open(args.task_params) as file:

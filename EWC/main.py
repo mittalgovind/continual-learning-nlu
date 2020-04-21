@@ -15,7 +15,7 @@ from tqdm import tqdm, trange
 from collections import OrderedDict 
 
 from transformers import (
-    MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING,
+    # MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING,
     WEIGHTS_NAME,
     AdamW,
     AutoConfig,
@@ -333,7 +333,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
 	processor = glue_processors[task]()
 	output_mode = glue_output_modes[task]
-	#data_size = 8 #To take low GPU memory 
+	#data_size = 8 #To take low GPU memory
 	logger.info("Creating features from dataset file at %s", args.data_dir)
 	label_list = processor.get_labels()
 	if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
@@ -381,7 +381,7 @@ def main():
 	if args.n_gpu > 1:
 		model = torch.nn.DataParallel(model)
 
-	set_seed(args.seed, args.n_gpu)
+
 
 	# Prepare GLUE tasks
 	processors = {}
