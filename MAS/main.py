@@ -146,13 +146,13 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 
     logs = {}
 
-    # results = evaluate(args, model, task, tokenizer, accuracy_matrix, task_num, task_num, "Current Task")
+    results = evaluate(args, model, task, tokenizer, accuracy_matrix, task_num, task_num, "Current Task")
 
     # for key, value in results.items():
     #	eval_key = "eval_{}".format(key)
     #	logs[eval_key] = value
 
-    # print(results)
+    print(results)
 
     loss_scalar = (tr_loss - logging_loss) / args.logging_steps
     # learning_rate_scalar = scheduler.get_lr()[0]
