@@ -14,11 +14,11 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage[hyperref]{naaclhlt2019}
 \usepackage{times}
-\usepackage{latexsym}
+\usepackage{latexsym, amsmath}
 
 \usepackage{url}
 
-%\aclfinalcopy % Uncomment this line for the final submission
+\aclfinalcopy % Uncomment this line for the final submission
 %\def\aclpaperid{***} %  Enter the acl Paper ID here
 
 %\setlength\titlebox{5cm}
@@ -27,49 +27,270 @@
 % smaller than 5cm (the original size); we will check this
 % in the camera-ready version and ask you to change it back.
 
+%%%%%%%%%%%%%%%%% GUIDELINES %%%%%%%%%%%%%%%
+% The partial draft in a single document with three pages of content (not counting references, appendix, and contribution statement). This should essentially be a near-final draft of your paper (in ACL 2020 paper style) with the results, analysis, and conclusion sections missing. It should contain a link to your public GitHub repo, which should show evidence that you have implemented everything you’ll need in order to complete your project.
+
+% Introduction/overall idea (4):
+% Clear overall motivation for project (2)
+% Clear description and motivation for any novel techniques, including baseline results (2)
+ 
+% Background (3):
+% No major omissions from the literature review (1)
+% 10+ papers cited (1)
+% 5+ relevant papers discussed in detail, with explanations of how they relate to your project (1)
+ 
+% Overall writing (2):
+% Reasonably close fit to ACL style (1)
+% Readable prose (1)
+% Collaboration statement (0, -1 for groups that leave it out) [We reserve the right to redistribute points unevenly between team members in case of very uneven contributions.]
+
 \newcommand\BibTeX{B{\sc ib}\TeX}
+\usepackage[ruled,vlined]{algorithm2e}
+\title{Continual NLU: Enabling language models to learn downstream tasks in an online fashion}
 
-\title{Life-long NLU: Continual Learning of Downstream Natural Language Tasks}
-
-\author{First Author \\
-  Affiliation / Address line 1 \\
-  Affiliation / Address line 2 \\
-  Affiliation / Address line 3 \\
-  {\tt email@domain} \\\And
-  Second Author \\
-  Affiliation / Address line 1 \\
-  Affiliation / Address line 2 \\
-  Affiliation / Address line 3 \\
-  {\tt email@domain} \\}
-
+\author{{Mohith Damarapati*, Govind Mittal*, Chandra Prakash Konkimalla*, Aakriti Gupta}\\
+  {\tt \{md4289, gm2724, cpk290, ag6817\}@nyu.edu}}
 \date{}
-
 \begin{document}
 \maketitle
 \begin{abstract}
-  Qualified general intelligence has the ability of learning new tasks without immediately becoming worse at an older one. With this statement at the core of this paper, we explore various techniques to prevent forgetting in a state-of-the-art language model. These techniques range involve Elastic Weight Consolidation, Memory aware synapses and semantic intelligence.
+  Qualified general intelligence has the ability of learning new tasks without immediately becoming worse at an older one. With this statement at the core of this paper, we explore various techniques to prevent catastrophic forgetting (CF) in a state-of-the-art language model. The paper explores three neuroscience inspired regularization techniques to mitigate CF, \textit{viz.}, Elastic Weight Consolidation, Memory Aware Synapses and Synaptic Intelligence on pre-trained BERT model. Two evaluation metrics -- backward and forward transfer, are used to evaluate the techniques. The paper aims to reduce the negative backward transfer for previous tasks and boost positive forward transfer for future tasks. As per our knowledge, this is the first work attempting to enable language models to learn downstream tasks in an online fashion and evaluating them based on the metrics mentioned above
 \end{abstract}
+
+% \section{credits
 
 \section{Introduction}
 \label{sec:intro}
 
+Natural cognitive systems gradually forget previously learned information unlike the CF observed in current connectionist approaches \cite{french1999catastrophic}.  This problem is significant in the domain of natural language understanding (NLU) as well.  
+
+Humans are remarkable at using their previously acquired knowledge when learning a new language task.  For instance, children first learn a language by mostly observing and listening to their parents.  They bolster their language skills through curricula by learning more formal language rules like grammar and syntax.  Using their linguistic knowledge, they can comprehend intricate texts and can answer questions based on them.  They can further infer meanings of natural language sentences used in complex contexts.  In all the stages of human learning, we are exceptionally good at retaining important parts of our previous knowledge.  
+
+In order to design real-world self-learning systems, two requirements are essential -- adaptability to learn new knowledge and stability while evolving and integrating it. Therefore a the ratio of \textit{how plastic} and \textit{how static} a system is decides how adaptable and how stable it is, respectively. A balance needs to be maintained to alleviate the problem of CF of consolidated knowledge, which gives rise to the \textit{stability-plasticity dilemma}.
+
+
+
+On the other hand, deep learning based language models drastically forget their previous knowledge while learning new tasks. Current state of the art language models, like BERT \cite{DBLP:journals/corr/abs-1810-04805}, struggle to learn multiple tasks in an online fashion \cite{DBLP:journals/corr/abs-1901-11373}. Despite having a huge capacity, these models cannot learn multiple tasks effectively due to CF.  
+
+In the current literature, after pre-training a language model, it is fine-tuned on each downstream task separately. While evaluating a language model, performance metrics like accuracy and F1 score are reported separately for each downstream task. In this paper, we argue against this kind of evaluation of language models. Language models need to be evaluated on multiple tasks trained in a continual way and on metrics measuring knowledge retention capacity apart from accuracy and F1.  We further put forward an argument that retaining and reusing the linguistic knowledge and avoiding CF is an important characteristic of general linguistic intelligence.  
+
+Our work in this paper mostly focuses on evaluating BERT-base trained on multiple tasks based on two metrics namely (i) backward transfer and (ii) forward transfer proposed in \citeauthor{DBLP:journals/corr/Lopez-PazR17}.  We compare vanilla fine-tuning of BERT-base with continual fine-turning based on neuroscience inspired techniques like Elastic Weight Consolidation (EWC, \citealt{DBLP:journals/corr/KirkpatrickPRVD16}), Memory Aware Synapses(MAS, \citealt{aljundi2018memory}) and Synaptic Intelligence (SI, \cite{Cortes2017AdaNetAS}).  As per our knowledge, this is the first work attempting to enable language models to learn downstream tasks in an online fashion and evaluating them based on the metrics mentioned above.
+
 \section{Related Work}
 \label{sec:related}
+
+There has been multiple ways proposed to mitigate CF in connectionist networks. The paper segregates and reviews some of them into the following categories.
+
+\subsection{Memory based methods}
+Memory methods involve \textit{rehearsing} on old samples along with seeing new distribution data interleaved \cite{Robins1995CatastrophicFR, Gepperth2016ABI}. These methods although cure the forgetting better than other methods, but this involves storing past events explicitly, which makes it difficult to scale as the neural networks becomes very large. 
+% which is the case for most state-of-the-art architectures 
+% (e.g. BERT $\sim$ 340M parameters \cite{DBLP:journals/corr/abs-1810-04805}, FixEfficientNet $\sim$ 480M parameters \cite{touvron2019fixing}, etc). 
+Also, this approach does not consider the fact that a network needs to learn unknown number of future tasks, which makes choosing \textit{defining set of examples} per task for storing in a fixed resourced system complicated.
+
+\subsection{Regularization based methods}
+These methods cure CF by enforcing a cost-based constraint during the update step of the network weights. These approaches aim to change a subset or all of the current parameters to an optimal value that works well for both the previous tasks and the current new task.
+
+\citet{Li2018LearningWF} proposed \textit{Learning without Forgetting (LwF)} for convolutional neural networks. This approach optimizes the new task parameters, while additionally optimizing the predictions made by the shared parameters, does not deviate much from previous predictions. The loss function while optimizing for each new parameter, minimizes the difference between new output and old output predictions as though learning the old task again. 
+% % The following equation illustrates the optimization step used in LwF, 
+
+% \begin{equation}
+% \begin{split}
+% \theta^*_s,\theta^*_o,\theta^*_n \leftarrow \text{argmin}_{\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n} [ \lambda_o \mathcal{L}_{old}(Y_o,\hat{Y}_o) \\ +
+% \mathcal{L}_{new}(Y_n,\hat{Y}_n) + \mathcal{R}(\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n)],
+% \end{split}
+% \end{equation}
+
+% where $\mathcal{L}_{old}(Y_o,\hat{Y}_o)$ and $\mathcal{L}_{new}(Y_n,\hat{Y}_n)$ represent the difference between the predicted values $\hat{Y}$ and the ground truth values $Y$ of the old and new tasks, respectively using parameters $\hat{\theta}_s,\hat{\theta}_o $ and  $\hat{\theta}_n$. $\lambda_o$ is used to balance previous and current tasks, and $\mathcal{R}$ is a regularization term to prevent overfitting. 
+After the optimization, a new smaller model is trained using knowledge distillation which works optimally as a multi-task model for all learned tasks. The requirement of storing data from previous tasks is its biggest disadvantage.
+
+\citet{DBLP:journals/corr/KirkpatrickPRVD16} proposed  \textit{Elastic Weight Consolidation (EWC)} constrains each parameter based on how important it is in the original task, which results in model that is flexible for adapting to new tasks while maintaining the performance on previous task. Per-parameter significance is calculated using the diagonal of the Fischer information matrix, which is an approximation of the second derivative of loss with respect to each parameter. This approximation is linear to compute in the number of parameters and training examples.
+
+The final parameters are calculated as follows:
+
+\begin{equation}
+\theta_N^* \leftarrow \text{argmin}_{\theta} L_N(\theta) + \sum_i \dfrac{\lambda}{2} (\dfrac{dL_{Pi}(\theta_{Pi})}{d\theta_{Pi}})^2(\theta - \theta_{Pi})^2 
+\end{equation}
+
+where $\theta_N^*$ are the optimal parameters after training on new task. $L_N(\theta)$ is the loss metric for new task, $dL_{Pi}(\theta_{Pi})$ is the loss metric for previous(i-th) task, $\theta_{Pi} $ are the optimal parameters until i-th task. $\lambda$ is the importance parameter for old tasks.
+
+
+ \citet{aljundi2018memory} proposed \textit{Memory Aware Synapses} inspired by Hebbian learning in natural systems. The core idea is to learn which parts of the model parameters are important relative to others, using unlabelled data itself. They calculate importance weights $\Omega_{ij}$ for all parameters $\theta_{ij}$, where $i$ and $j$ are indices of pairs of neurons $n_i$ and $n_j$ residing in two consecutive layers, respectively. The importance weight represent the \textit{sensitivity} of the function output of a learned function, $F:X_n \longrightarrow Y_n$, to changes in the corresponding parameter. Therefore,
+
+\begin{equation}
+\Omega_{ij} =\frac{1}{N}\sum_{k=1}^N  \mid\mid g_{ij}(x_k) \mid\mid
+\end{equation}
+where, $N$ is the number of data points at a given stage and
+\begin{equation}
+g_{ij}(x_k)=\frac{\partial (F(x_k; \theta))}{\partial \theta_{ij}}
+\end{equation}
+
+for a given data point $x_k$. Therefore, whichever parameters have lower importance can be changed without degrading the accuracy on previous tasks, while decreasing the loss for subsequent tasks. Thus, if we wish to learn a new task, the total loss function $L(\theta)$ becomes,
+
+\begin{equation}
+L(\theta)=L_n(\theta)+{\lambda} \sum_{i,j} \Omega_{ij}(\theta_{ij}-\theta^*_{ij})^2
+\end{equation}
+
+where, $L_n(\theta)$ is the new task loss, $\theta^*_{ij}$ are the old parameters and $\lambda$ is a regularizer hyperparamter.
+
+
+ \citet{DBLP:journals/corr/ZenkePG17} \textit{Synaptic Intelligence} loss is similar to MAS: 
+ \begin{align*}
+     L(\theta) &=L_n(\theta)+{\lambda} \sum_{k} \Omega_k^{\mu} (\theta - \theta_k)^2,\\ 
+     where:
+     \Omega_k^{\mu} &= \sum_{v<\mu} \dfrac{\omega_k^v}{(\Delta_k^v)^2+\epsilon} \\
+     \omega_k^v &= \int_{t^{\mu-1}}^{t^{\mu}} g_k(t)\theta^{'}_k(t)
+ \end{align*}
+Here k signifies task number, $g_k(t)$ is the gradient of loss w.r.t parameter k, $\theta^{'}_k(t)$ is the parameter change at time t
+
+In case of SI the importance of parameter is an accumulation of product of gradient and parameter change. It depends on two quantities: 1) $ \omega_k^v $ is a drop in loss over the trajectory of training. 2) How far the loss has changed $\Delta_k^v = \theta_k(t^v) - \theta_k(t^{v-1})$.
+
+
+\subsection{Dynamic Architectures} 
+In this approach, a network is augmented as new tasks and more neural resources are needed \cite{Rusu2016ProgressiveNN, Cortes2017AdaNetAS}. Old network parameters are fully preserved to prevent CF and additional neurons are added and trained separately. Although this approach works well for reinforcement learning tasks but leads to higher complexity of architecture as the number of learned tasks increases.
+% proposed a model augmentation technique named \textit{Progressive Networks}, in which the old network parameters are preserved to prevent CF and when a new task needs to be learned, a new network is trained and coalesced into the old network by forming lateral connections. This approach although works well on reinforcement learning tasks, but leads 
+
+% \citet{Cortes2017AdaNetAS} proposed a technique similar to neural architectural search named \textit{AdaNet}, in which they optimize both structure and weights of networks starting with a general structure. The models adapts itself as newer tasks are learned. The approach balances the model complexity by merging similar features to obtain compact feature representations and scaling up when more neural resources are needed.
 
 \section{Proposed Method}
 \label{sec:prop_method}
 
+\subsection{Evaluation Metrics}
+\label{sec:metric}
+This paper uses two metrics proposed by \citeauthor{DBLP:journals/corr/Lopez-PazR17}. They are:
+\begin{enumerate}
+    \item \textit{Backward transfer (BWT)} is the influence of learning a new task $T$ on the previous $i$ tasks. 
+    \item \textit{Forward transfer (FWT)} is the influence of learning a new task $T$ on future $i$ tasks.
+\end{enumerate}
+
+The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, where $R_{i, j}$ is the test classification accuracy of the model on task $t_j$ after observing the last data point from task $t_i$ and $Tr_{i, j}}$ is the backward transfer when $i > j$ and the forward transfer when $i < j$, respectively.
+
+\subsection{Continual Framework}
+
+The paper proposes a continual framework for learning multiple downstream tasks on BERT and illustrates in Algorithm \ref{algo:1}.  Let $\theta_{B}$ be BERT pre-trained parameters\footnote{https://github.com/huggingface/transformers}.  In case of vanilla fine-tuning, for each task, task-specific head are initialized to zero and BERT-specific parameters are re-initialized to $\theta_{B}$.  But, in this framework, BERT-specific parameters are \textit{not re-initialized}, when training new tasks.   
+
+Let us say we are fine-tuning BERT on $n$ downstream tasks ($T_i, 1<=i<=n $).  Before training the first task, we initialize BERT-specific parameters to $\theta_{B}$.  Since, we are not updating BERT-specific parameters, after training task $T_i$, let us say our BERT-specific parameters are  $\theta_{Bi}$.  When training a new task $T_{i+1}$, we attach freshly initialized task-specific head with parameters $\theta_{Ti}$ = $\theta_{Bi}$. When training a new task, $T_{i+1}$, we use techniques like EWC, MAS and SI to consolidate the previous BERT-specific parameters $\theta_{Bi}$. Consolidating previous parameters helps us retain knowledge obtained from previously trained tasks.
+
+While evaluating our model, we report accuracy on task $T_i$ after re-installing its task-specific head.  More formally, after training a task $T_i$, we evaluate backward transfer for all previous tasks ($T_j, j<i$) and forward transfer for all future tasks ($T_j, j>i$).  We store backward and forward transfers in a $N \times N$ transfer matrix obtained from $R$.  Very high negative backward transfer is called catastrophic forgetting which is observed in vanilla fine-turning. But, using techniques like EWC, significantly reduced negative backward transfer.  Discussion about forward transfer and its significance is left to future work.    
+
+
+\begin{algorithm}
+    $T \leftarrow \mbox{Tasks}$ \\
+    $N \leftarrow \mbox{Number of Tasks}$ \\
+    $\theta_B \leftarrow \mbox{Bert Pre-trained Parameters}$\\
+    $R \leftarrow 0_{N \times N}$ \Comment{;Test Accuracy Matrix}\\
+    $Tr \leftarrow 0_{N \times N}$ \Comment{;Transfer Matrix}\\
+  \For{$i = 1:N$}{
+    $D_i \leftarrow data(T_{i, train})$ \\
+    \theta_i = argmin_{\theta} L_t(D_i,  \theta_B; \theta_1, ..., \theta_{i-1})\\
+    \theta_{B_i}, \theta_{T_i} = seperate(\theta_i) \\
+    \For{$j = 1:T$}{
+        $D_{test} \leftarrow data(T_{j, test})$ \\
+        $R_{i,j} \leftarrow acc(\theta_{Bi}, \theta_{Tj}, D_{test})$ \\
+        % \If{i \neq j}
+        %     \State 
+        $Tr_{i, j} \leftarrow R_{i, j} - R_{i, i}$ \\
+        % \ElseIf{i $>$ j} 
+        %     \State $Tr_{i, j} \leftarrow R_{j, i} - R_{i, i}$ \\
+        % \EndIf % {}{\ifthenelse{i $>$ j}{}{}}
+        % \\
+    }
+    }
+    \textbf{return} $R, Tr$
+    \caption{Proposed Framework}
+    \label{algo:1}
+\end{algorithm}
+
 \subsection{Data}
 \label{sec:data}
 
-\subsection{Metric}
-\label{sec:metric}
+In this paper we work in three phases using various GLUE tasks \cite{wang2019glue}, as follows:
+\begin{itemize}
+  \item \textbf{First Phase (Two low data tasks):} Microsoft Research Paraphrase Corpus (MRPC) and Recognizing Textual Entailment (RTE).
+  \item \textbf{Second Phase (Two high data tasks):} Quora Question Pairs (QQP) and Multi Natural Language Inference (MNLI), and vice-versa.
+  \item \textbf{Final Phase (All tasks):} More than two tasks -- MRPC $\rightarrow$ RTE $\rightarrow$ MNLI-mm.
+\end{itemize}
 
-\subsection{}
+\section{Results}
+\label{sec:results}
 
-\section*{Contribution Statement}
+We obtained results for baseline and EWC, for the \textbf{first phase}. Our baseline results strengthen our hypothesis that the models suffer from very high negative backward transfer. Forward transfer is still low and methods to improve it will be discussed in the future work.  Table 1 shows the results on both vanilla fine-turning (baseline) and continual fine-turning with EWC.  The model trained with EWC has relatively lower negative backward transfer compared to baseline.  We are expecting similar results from MAS and SI.  
+
+% Results for second phase final phase will also be shown in the future work. MAS and SI are work in progress.
+
+% \subsection{First Phase}
+
+% Baseline and EWC results are done for first phase. Accuracy and transfer for the first phase configuration (MRPC - RTE) is shown below. Results are reported after 2 epochs.
+
+% \textbf{Baseline Matrix:}
+
+% \begin{center}
+%  \begin{tabular}{||c c c||} 
+%  \hline
+%  Task & MRPC & RTE  \\ [0.5ex] 
+%  \hline\hline
+%  MRPC & 0.86(CT) & 0.52(\textbf{FT} -0.12) \\ 
+%  \hline
+%  RTE & 0.65(\textbf{BT} -0.21) & 0.64(CT) \\ [1ex] 
+%  \hline
+% \end{tabular}
+% \end{center}
+
+% \textbf{EWC Matrix:}
+
+% \begin{center}
+
+% \end{center}
 
 
+\begin{table}[h!]
+\centering
+ \begin{tabular}{|c|c|c|} 
+ \hline
+ \textbf{Task} & \textbf{MRPC} & \textbf{RTE}  \\
+ \hline\hline
+ & \textit{Baseline} & \\
+ \hline
+ \textbf{MRPC} & 0.86(CT) & 0.52(FT -0.12) \\ 
+ \hline
+ \textbf{RTE} & 0.65(BT -0.21) & 0.64(CT) \\ % [1ex] 
+ \hline
+ & \textit{EWC} & \\ 
+ \hline\hline
+ \textbf{MRPC} & 0.87(CT) & 0.52(FT -0.12) \\ 
+ \hline
+ \textbf{RTE} & 0.75(BT -0.12) & 0.64(CT) \\ %[1ex] 
+ \hline
+% \caption{Table A}
+\end{tabular}
+
+%  \begin{tabular}{|c|c|c|} 
+%  \hline
+
+% % \caption{Table A}
+% \end{tabular}
+% % \end{center}
+\caption{\label{base-table} Results for baseline and EWC; \textbf{CT:} Current Task, \textbf{BT:} Backward Transfer, \textbf{FT:} Forward Transfer. 
+ }
+\end{table}
+
+\section*{Availability}
+The code and \LaTeX{} source files are available at \url{https://github.com/mittalgovind/continual-learning-nlu}.
+% \section{Conclusion}
+% \label{sec:conc}
+
+
+\section*{Collaboration Statement}
+The contributions of the authors, in the same order, are as follows:
+
+\textit{Mohith Damarapati*:} Implemented EWC (Elastic Weight Consolidation) from scratch.  Designed a framework to evaluate models in a continual way (i.e. print both backward and forward transfers after training each task).  Fixed some crucial bugs that hindered our project progress. 
+
+\textit{Govind Mittal*:} Implemented Memory Aware Synapses (MAS) for BERT from scratch. Wrote the complete related work (Sec. \ref{sec:related} and part of introduction (Sec. \ref{sec:intro}). 
+
+\textit{Chandra Prakash Konkimalla*:} Implemented the baseline framework for finetuning the tasks one after another. Fixed bugs in EWC (Elastic Weight Consolidation) training procedure. Integrated Baseline and EWC into one code so that the results can be consistent. 
+
+\textit{Aakriti Gupta:} No contribution to team yet. Still working on SI.
+
+* = equal contribution
 \bibliography{paper}
 \bibliographystyle{acl_natbib}
 
