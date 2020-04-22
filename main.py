@@ -70,16 +70,18 @@ def save_model(args, task_num, model):
 
 def compute_ewc_loss(args, lamda, task_num, task, model, consolidate_fisher, consolidate_mean):
     # EWC Loss is computed only on BERT parameters (not on task specific parameters)
-    bert_paramters = model.state_dict().copy()
-    del bert_paramters["classifier.weight"]
-    del bert_paramters['classifier.bias']
+    # bert_paramters = model.state_dict()
+    # del bert_paramters["classifier.weight"]
+    # del bert_paramters['classifier.bias']
 
-    loss_ewc = 0
-    for name, params in bert_paramters.items():
-        mean = Variable(consolidate_mean[task][name])
-        fisher = Variable(consolidate_fisher[task][name])
-        loss_ewc_layer = fisher * (params - mean) ** 2
-        loss_ewc += loss_ewc_layer.sum()
+    loss_ewc = torch.tensor(0.0, requires_grad=True).to(args.device)
+    for name, params in model.named_parameters():
+        if not (name == "classifier.weight" or name == "classifier.bias"):
+            # print(name)
+            mean = consolidate_mean[task][name]
+            fisher = consolidate_fisher[task][name]
+            loss_ewc_layer = fisher * (params - mean) ** 2
+            loss_ewc += loss_ewc_layer.sum()
 
     return (lamda / 2) * loss_ewc
 
@@ -94,10 +96,10 @@ def estimate_fisher_mean(args, train_dataset, model, task, fisher_consolidate, m
     fisher_consolidate[task] = {}
 
     for n, p in model.named_parameters():
-        mean_consolidate[task][n] = Variable(p.data.to(args.device))
+        mean_consolidate[task][n] = p.data.to(args.device)
 
     for n, p in model.named_parameters():
-        fisher_consolidate[task][n] = Variable(torch.zeros(p.size()).to(args.device))
+        fisher_consolidate[task][n] = torch.zeros(p.size()).to(args.device)
 
     model.eval()
     # new_model = copy.deepcopy(model).cpu()
@@ -113,8 +115,8 @@ def estimate_fisher_mean(args, train_dataset, model, task, fisher_consolidate, m
         loss = outputs[0]
         loss.backward()
         for n, p in model.named_parameters():
-            fisher_consolidate[task][n].data += p.grad.data ** 2 / len(train_dataset)
-    fisher_consolidate[task] = {n: p for n, p in fisher_consolidate[task].items()}
+            fisher_consolidate[task][n] += p.grad.data ** 2 / len(data_loader)
+    # fisher_consolidate[task] = {n: p for n, p in fisher_consolidate[task].items()}
 
     return fisher_consolidate, mean_consolidate
 
@@ -186,11 +188,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
                 loss = loss.mean()  # mean() to average on multi-gpu parallel training
             # Compute EWC loss & Update the total loss (For first task it is just zero)
             if task_num > 0 and args.ewc:
-                lamda = 40
+                lamda = args.lamda
                 ewc_loss = compute_ewc_loss(args, lamda, task_num, all_tasks[task_num - 1], model,
                                             consolidate_fisher, consolidate_mean)
+                # print("EWC:{}, Normal:{}, Total:{}".format(ewc_loss, loss, loss+ewc_loss))
                 loss += ewc_loss
-                # print("************", ewc_loss, "*************")
             loss.backward()
 
             tr_loss += loss.item()
@@ -441,7 +443,9 @@ def main():
     for i in range(n):
         models[i][1].to(args.device)
         save_model(args, i, models[i][1])
-
+    if args.cuda == torch.device('cuda') and torch.cuda.device_count() > 1:
+        for key in models:
+            models[key] = torch.nn.DataParallel(models[key])
     consolidate_fisher = {}
     consolidate_mean = {}
 

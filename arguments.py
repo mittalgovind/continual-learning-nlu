@@ -56,6 +56,10 @@ def parse_args():
                         action="store_true",
                         default=False
                         )
+    parser.add_argument("--lamda",
+                        default=1000,
+                        type=float
+                        )
 
     args = parser.parse_args()
     with open(args.task_params) as file:
