@@ -158,47 +158,46 @@ In this approach, a network is augmented as new tasks and more neural resources 
 \label{sec:metric}
 This paper uses two metrics proposed by \citeauthor{DBLP:journals/corr/Lopez-PazR17}. They are:
 \begin{enumerate}
-    \item \textit{Backward transfer (BWT)} is the influence of learning a new task $T$ on the previous $i$ tasks. 
-    \item \textit{Forward transfer (FWT)} is the influence of learning a new task $T$ on future $i$ tasks.
+    \item \textit{Backward transfer (BWT)} is the influence of learning a new task on the previous tasks. 
+    \item \textit{Forward transfer (FWT)} is the influence of learning a new task on future tasks.
+    \item \textit{Accuracy} is the test classification accuracy on the current new task.
 \end{enumerate}
 
-The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, where $R_{i, j}$ is the test classification accuracy of the model on task $t_j$ after observing the last data point from task $t_i$ and $Tr_{i, j}}$ is the backward transfer when $i > j$ and the forward transfer when $i < j$, respectively.
+The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, where $R_{i, j}$ is the test classification accuracy of the model on task $t_j$ after observing the last data point from task $t_i$ and $Tr_{i, j}$ is the backward transfer when $i > j$ and the forward transfer when $i < j$, respectively.
 
 \subsection{Continual Framework}
-
-The paper proposes a continual framework for learning multiple downstream tasks on BERT and illustrates in Algorithm \ref{algo:1}.  Let $\theta_{B}$ be BERT pre-trained parameters\footnote{https://github.com/huggingface/transformers}.  In case of vanilla fine-tuning, for each task, task-specific head are initialized to zero and BERT-specific parameters are re-initialized to $\theta_{B}$.  But, in this framework, BERT-specific parameters are \textit{not re-initialized}, when training new tasks.   
-
-Let us say we are fine-tuning BERT on $n$ downstream tasks ($T_i, 1<=i<=n $).  Before training the first task, we initialize BERT-specific parameters to $\theta_{B}$.  Since, we are not updating BERT-specific parameters, after training task $T_i$, let us say our BERT-specific parameters are  $\theta_{Bi}$.  When training a new task $T_{i+1}$, we attach freshly initialized task-specific head with parameters $\theta_{Ti}$ = $\theta_{Bi}$. When training a new task, $T_{i+1}$, we use techniques like EWC, MAS and SI to consolidate the previous BERT-specific parameters $\theta_{Bi}$. Consolidating previous parameters helps us retain knowledge obtained from previously trained tasks.
-
-While evaluating our model, we report accuracy on task $T_i$ after re-installing its task-specific head.  More formally, after training a task $T_i$, we evaluate backward transfer for all previous tasks ($T_j, j<i$) and forward transfer for all future tasks ($T_j, j>i$).  We store backward and forward transfers in a $N \times N$ transfer matrix obtained from $R$.  Very high negative backward transfer is called catastrophic forgetting which is observed in vanilla fine-turning. But, using techniques like EWC, significantly reduced negative backward transfer.  Discussion about forward transfer and its significance is left to future work.    
-
 
 \begin{algorithm}
     $T \leftarrow \mbox{Tasks}$ \\
     $N \leftarrow \mbox{Number of Tasks}$ \\
-    $\theta_B \leftarrow \mbox{Bert Pre-trained Parameters}$\\
+    $\theta_{B_0} \leftarrow \mbox{Bert Pre-trained Parameters}$\\
     $R \leftarrow 0_{N \times N}$ \Comment{;Test Accuracy Matrix}\\
     $Tr \leftarrow 0_{N \times N}$ \Comment{;Transfer Matrix}\\
   \For{$i = 1:N$}{
     $D_i \leftarrow data(T_{i, train})$ \\
-    \theta_i = argmin_{\theta} L_t(D_i,  \theta_B; \theta_1, ..., \theta_{i-1})\\
-    \theta_{B_i}, \theta_{T_i} = seperate(\theta_i) \\
+    $\theta_{B_i}, \theta_{T_i}$ \leftarrow $\mbox{argmin}_{\theta_B, \theta_T} L(D_i,  \theta_{B_{i-1}}, \theta_{T_i})$\\
     \For{$j = 1:T$}{
         $D_{test} \leftarrow data(T_{j, test})$ \\
         $R_{i,j} \leftarrow acc(\theta_{Bi}, \theta_{Tj}, D_{test})$ \\
-        % \If{i \neq j}
-        %     \State 
         $Tr_{i, j} \leftarrow R_{i, j} - R_{i, i}$ \\
-        % \ElseIf{i $>$ j} 
-        %     \State $Tr_{i, j} \leftarrow R_{j, i} - R_{i, i}$ \\
-        % \EndIf % {}{\ifthenelse{i $>$ j}{}{}}
-        % \\
     }
     }
     \textbf{return} $R, Tr$
     \caption{Proposed Framework}
     \label{algo:1}
 \end{algorithm}
+
+The paper proposes a continual framework for learning multiple downstream tasks on BERT and illustrates in Algorithm \ref{algo:1}. Let $T$ be the tasks to be learned, $N$ be the number of tasks to be learned, $\theta_{B_0}$ be BERT pre-trained parameters obtained from huggingface\footnote{https://github.com/huggingface/transformers}, $R$ is the accuracy matrix and $Tr$ is the transfer matrix, both initialized to zero.
+
+In case of vanilla fine-tuning, after each task-specific head are initialized randomly and BERT-specific parameters (All BERT parameters except the task specific ones) are re-initialized to $\theta_{B_0}$.  But, in this framework, BERT-specific parameters  are \textit{not re-initialized}, when training new tasks.   
+
+The paper fine-tunes BERT on $N$ downstream tasks $T_i, \forall i \in [1, N]$.  Before training the first task, BERT-specific parameters are initialized to $\theta_{B_0}$. After starting the training loop, the task-specific training data is loaded. Since, we are not updating BERT-specific parameters, after any training task $T_i$, let it be $\theta_{B_i}$.  When training a new task $T_{i+1}$, a randomly initialized task-specific head with parameters $\theta_{T_{i+1}}$ is attached to previously trained $\theta_B_{i}$.
+
+When learning a new task, $T_{i+1}$, techniques like EWC, MAS and SI are employed to consolidate the previous trained parameters $\theta_{B_i}$. Consolidating previous parameters helps us to retain knowledge obtained from previously trained tasks.
+
+While evaluating the model, test accuracy on task $T_i$ after re-installing its task-specific head is reported. After training a task $T_i$, backward transfer for all previous tasks ($T_j, \forall j<i$) and forward transfer for all future tasks ($T_j, \forall j>i$) is evaluated. Backward and forward transfers are obtained from $R$ and stored in an $N \times N$ transfer matrix $Tr$.
+
+
 
 \subsection{Data}
 \label{sec:data}
@@ -213,7 +212,7 @@ In this paper we work in three phases using various GLUE tasks \cite{wang2019glu
 \section{Results}
 \label{sec:results}
 
-We obtained results for baseline and EWC, for the \textbf{first phase}. Our baseline results strengthen our hypothesis that the models suffer from very high negative backward transfer. Forward transfer is still low and methods to improve it will be discussed in the future work.  Table 1 shows the results on both vanilla fine-turning (baseline) and continual fine-turning with EWC.  The model trained with EWC has relatively lower negative backward transfer compared to baseline.  We are expecting similar results from MAS and SI.  
+We obtained results for baseline and EWC, for the \textbf{first phase}. Our baseline results strengthen our hypothesis that the models suffer from very high negative backward transfer. Forward transfer is still low and methods to improve it will be discussed in the future work.  Table 1 shows the results for both vanilla fine-turning (baseline) and continual fine-turning with EWC.  The model trained with EWC has relatively lower negative backward transfer compared to baseline.  We are expecting to further mitigate negative backward transfer with MAS and SI.  
 
 % Results for second phase final phase will also be shown in the future work. MAS and SI are work in progress.
 
