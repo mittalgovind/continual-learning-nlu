@@ -4,8 +4,11 @@ import torch
 import logging
 import os
 import json
-
+from torch.nn import functional as F
+from torch import autograd
 from torch.autograd import Variable
+from torch.utils.data.dataloader import default_collate
+
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from arguments import parse_args
 from tqdm import tqdm, trange
@@ -24,29 +27,27 @@ from transformers import glue_compute_metrics as compute_metrics
 from transformers import glue_convert_examples_to_features as convert_examples_to_features
 from transformers import glue_output_modes
 from transformers import glue_processors
+import copy
 
 try:
     from torch.utils.tensorboard import SummaryWriter
 except ImportError:
     from tensorboardX import SummaryWriter
 
+# MAS-SPECIFIC IMPORTS
 from dict_utils import convert_dict
-
-from pdb import set_trace
-
-# MY IMPORTS
 from mas_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_omega_grads_norm, \
     init_reg_params_across_tasks, consolidate_reg_params
-from optimizer_lib import local_sgd, omega_update
+from optimizer_lib import local_sgd, omega_update_Adam, local_AdamW
 
 logger = logging.getLogger(__name__)
-logger.propagate = False
 
 
 def set_seed(seed, n_gpu):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     if n_gpu > 0:
         torch.cuda.manual_seed_all(seed)
 
@@ -66,7 +67,7 @@ def save_model(args, task_num, model):
 
     torch.save(bert_paramters, os.path.join(args.output_dir, "bert_paramters_" + str(task_num) + ".pt"))
     torch.save(task_paramters, os.path.join(args.output_dir, "task_paramters_" + str(task_num) + ".pt"))
-    torch.save(model.reg_params, os.path.join(args.output_dir, "reg_params_{}.pt".format(task_num)))
+
     print()
     print("***** Parameters Saved for task", task_num, "*****")
     print()
@@ -75,7 +76,6 @@ def save_model(args, task_num, model):
 def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accuracy_matrix):
     """ Train the model """
     tb_writer = SummaryWriter()
-
     args.train_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
@@ -87,7 +87,24 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
         # inititialize the reg_params for this task
         init_reg_params_across_tasks(model, args.device)
 
-    optimizer = local_sgd(model.tmodel.parameters(), args.reg_lambda, args.init_lr)
+    # optimizer = local_sgd(model.tmodel.parameters(), args.reg_lambda, args.init_lr)
+
+    # Prepare optimizer and schedule (linear warmup and decay)
+    no_decay = ["bias", "LayerNorm.weight"]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.tmodel.named_parameters() if not any(nd in n for nd in no_decay)],
+            "weight_decay": args.weight_decay,
+        },
+        {"params": [p for n, p in model.tmodel.named_parameters() if any(nd in n for nd in no_decay)],
+         "weight_decay": 0.0},
+    ]
+
+    optimizer = local_AdamW(optimizer_grouped_parameters, args.reg_lambda, lr=args.init_lr, eps=args.adam_epsilon)
+    # scheduler = torch.optim.SGD(optimizer_grouped_parameters, lr=args.init_lr)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total
+    )
 
     # Train!
     logger.info("***** Running training *****")
@@ -102,6 +119,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 
     global_step = 0
     epochs_trained = 0
+    steps_trained_in_current_epoch = 0
 
     tr_loss, logging_loss = 0.0, 0.0
     model.tmodel.zero_grad()
@@ -113,33 +131,50 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     for _ in train_iterator:
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
         for step, batch in enumerate(epoch_iterator):
-            # scales the optimizer every 20 steps
-            optimizer = exp_lr_scheduler(optimizer, step, args.init_lr)
-            optimizer.zero_grad()
-            model.tmodel.train(True)
+            # optimizer = exp_lr_scheduler(optimizer, step, args.init_lr, lr_decay_epoch=200)
+            # Skip past any already trained steps if resuming training
+            if steps_trained_in_current_epoch > 0:
+                steps_trained_in_current_epoch -= 1
+                continue
 
+            model.tmodel.train()
             batch = tuple(t.to(args.device) for t in batch)
             inputs = {"input_ids": batch[0], "attention_mask": batch[1], "token_type_ids": batch[2], "labels": batch[3]}
-
+            '''if args.model_type != "distilbert":
+                inputs["token_type_ids"] = (
+                    batch[2] if args.model_type in ["bert", "xlnet", "albert"] else None
+                )'''  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
             outputs = model.tmodel(**inputs)
             loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
 
             if args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu parallel training
+            #
+            # # Compute EWC loss & Update the total loss (For first task it is just zero)
+            # if task_num > 0:
+            #     lamda = 40
+            #     ewc_loss = compute_ewc_loss(args, lamda, task_num, all_tasks[task_num - 1], model, consolidate_fisher,
+            #                                 consolidate_mean)
+            #     loss += ewc_loss
+            #     # cd ..print()
+            #     print("************", ewc_loss, "*************")
+            # # print()
 
             loss.backward()
-            tr_loss += loss.item()
 
-            # torch.nn.utils.clip_grad_norm_(model.tmodel.parameters(), args.max_grad_norm)
+            tr_loss += loss.item()
+            # print("************", tr_loss, "*************")
+            torch.nn.utils.clip_grad_norm_(model.tmodel.parameters(), args.max_grad_norm)
 
             optimizer.step(model.reg_params)
+            scheduler.step()  # Update learning rate schedule
             model.tmodel.zero_grad()
             global_step += 1
 
-    # run the omega accumulator
-    optimizer_ft = omega_update(model.reg_params)
+    optimizer_ft = omega_update_Adam(model.reg_params)
     print('Updating the omega values for this task')
-    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
+    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft
+                                     , args.device)
 
     if task_num >= 1:
         model = consolidate_reg_params(model)
@@ -152,7 +187,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     #	eval_key = "eval_{}".format(key)
     #	logs[eval_key] = value
 
-    print(results)
+    # print(results)
 
     loss_scalar = (tr_loss - logging_loss) / args.logging_steps
     # learning_rate_scalar = scheduler.get_lr()[0]
@@ -160,9 +195,28 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     logs["loss"] = loss_scalar
     logging_loss = tr_loss
 
-    # for key, value in logs.items():
-    #     tb_writer.add_scalar(key, value, global_step)
-    # print(json.dumps({**logs, **{"step": global_step}}))
+    for key, value in logs.items():
+        tb_writer.add_scalar(key, value, global_step)
+    print(json.dumps({**logs, **{"step": global_step}}))
+
+    '''if args.save_steps > 0 and global_step % args.save_steps == 0:
+        # Save model checkpoint
+        output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))
+        if not os.path.exists(output_dir): os.makedirs(output_dir)
+
+        model_to_save = (
+            model.module if hasattr(model, "module") else model
+        )  
+        # Take care of distributed/parallel training
+        model_to_save.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+
+        torch.save(args, os.path.join(output_dir, "training_args.bin"))
+        logger.info("Saving model checkpoint to %s", output_dir)
+
+        torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
+        torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
+        logger.info("Saving optimizer and scheduler states to %s", output_dir)'''
 
     save_model(args, task_num, model)
 
@@ -173,18 +227,18 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
         if (i < task_num):
             model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")),
                                          strict=False)
-            results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num, i,
-                                                "Previous Task (Continual)")
+            results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num,
+                                                i, "Previous Task (Continual)")
         # Future tasks
         elif (i > task_num):
             model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")),
                                          strict=False)
-            results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num, i,
-                                                "Future Task (Continual)")
+            results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num,
+                                                i, "Future Task (Continual)")
 
     tb_writer.close()
 
-    return global_step, tr_loss / global_step, accuracy_matrix
+    return global_step, tr_loss / global_step, accuracy_matrix, model
 
 
 def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, current_task_num, prefix=""):
@@ -201,7 +255,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 
         args.eval_batch_size = args.per_gpu_batch_size * max(1, args.n_gpu)
         # Note that DistributedSampler samples randomly
-        eval_sampler = SequentialSampler(eval_dataset)
+        eval_sampler = RandomSampler(eval_dataset)
         eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
         # Eval!
@@ -225,8 +279,8 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
                     )  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids '''
                 outputs = model.tmodel(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
-
                 eval_loss += tmp_eval_loss.mean().item()
+
             nb_eval_steps += 1
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -248,9 +302,9 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
             logger.info("***** Eval results {} *****".format(prefix))
             print(result)
             accuracy_matrix[train_task_num][current_task_num] = format(result['acc'], ".2f")
-    # for key in sorted(result.keys()):
-    #	logger.info("  %s = %s", key, str(result[key]))
-    #	writer.write("%s = %s\n" % (key, str(result[key])))
+        # for key in sorted(result.keys()):
+        #	logger.info("  %s = %s", key, str(result[key]))
+        #	writer.write("%s = %s\n" % (key, str(result[key])))
 
     return results, accuracy_matrix
 
@@ -258,7 +312,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     processor = glue_processors[task]()
     output_mode = glue_output_modes[task]
-
+    # data_size = 8 #To take low GPU memory
     logger.info("Creating features from dataset file at %s", args.data_dir)
     label_list = processor.get_labels()
     if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
@@ -289,6 +343,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
         all_labels = torch.tensor([f.label for f in features], dtype=torch.float)
 
     dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
+    # dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
     return dataset
 
 
@@ -357,8 +412,8 @@ def main():
             models[i][1].reg_params = models[i - 1][1].reg_params
         new_args = convert_dict(args.task_params[tasks[i]], args)
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
-        global_step, tr_loss, accuracy_matrix = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i,
-                                                      tokenizer, accuracy_matrix)
+        global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i,
+                                                                    tokenizer, accuracy_matrix)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
     print()

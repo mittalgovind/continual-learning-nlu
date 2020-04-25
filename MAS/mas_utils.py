@@ -58,7 +58,7 @@ def exp_lr_scheduler(optimizer, epoch, init_lr=0.0008, lr_decay_epoch=20):
 
     """
     lr = init_lr * (0.1 ** (epoch // lr_decay_epoch))
-    # print('lr is ' + str(lr))
+    print('lr is ' + str(lr))
 
     # if (epoch % lr_decay_epoch == 0):
     #     print('LR is set to {}'.format(lr))
@@ -205,6 +205,7 @@ def compute_omega_grads_norm(model, dataloader, optimizer, device):
 
         # optimizer.step computes the omega values for the new batches of data
         optimizer.step(model.reg_params, index, len(batch[0]), device)
+        # optimizer.step(model.reg_params)
         del batch
         index = index + 1
 
