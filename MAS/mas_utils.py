@@ -34,7 +34,7 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
             print("Initializing omega values for layer", name)
-            omega = torch.zeros(param.size())
+            omega = torch.zeros(param.size(), dtype=torch.float64)
             omega = omega.to(device)
 
             init_val = param.data.clone()
@@ -67,6 +67,21 @@ def exp_lr_scheduler(optimizer, epoch, init_lr=0.0008, lr_decay_epoch=20):
         param_group['lr'] = lr
 
     return optimizer
+
+
+# sanity check for the model to check if the omega values are getting updated
+def sanity_model(model):
+    for name, param in model.tmodel.named_parameters():
+
+        print(name)
+
+        if param in model.reg_params:
+            param_dict = model.reg_params[param]
+            omega = param_dict['omega']
+
+            print("Max omega is", omega.max())
+            print("Min omega is", omega.min())
+            print("Mean value of omega is", omega.min())
 
 
 def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weight', 'classifier.bias']):

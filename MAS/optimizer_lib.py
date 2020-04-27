@@ -54,6 +54,9 @@ class local_AdamW(optim.Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
+                zero = torch.FloatTensor(p.data.size()).zero_()
+                if grad.equal(zero.cuda()):
+                    print('omega after zero')
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
@@ -226,70 +229,31 @@ class omega_update_Adam(optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
+
                 grad = p.grad.data
+                # grad = torch.tensor(p.grad.data, dtype=torch.float64).to(device)
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
-                state = self.state[p]
-
-                # State initialization
-                if len(state) == 0:
-                    state["step"] = 0
-                    # Exponential moving average of gradient values
-                    state["exp_avg"] = torch.zeros_like(p.data)
-                    # Exponential moving average of squared gradient values
-                    state["exp_avg_sq"] = torch.zeros_like(p.data)
-
-                exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
-                beta1, beta2 = group["betas"]
-
-                state["step"] += 1
                 if p.grad is None:
                     continue
-
-                ###### BEGIN MAS CODE########
+                zero = torch.FloatTensor(p.data.size()).zero_()
+                ###### BEGIN MAS CODE ######
                 if p in reg_params:
                     grad_copy = grad.clone().abs()
+                    # del grad
+                    if grad_copy.equal(zero.cuda()):
+                        print('omega after zero')
                     # grad_copy = grad.clone()
                     param_dict = reg_params[p]
                     omega = param_dict['omega'].to(device)
                     current_size = (batch_index + 1) * batch_size
                     omega += (grad_copy - batch_size*batch_index*omega)/float(current_size)
-                    zero = torch.FloatTensor(p.data.size()).zero_()
-                    if omega.equal(zero.cuda()):
-                        print('omega after zero')
-
+                    # zero = torch.FloatTensor(p.data.size()).zero_()
                     param_dict['omega'] = omega
                     reg_params[p] = param_dict
-                ###### END MAS CODE#######
 
-                # Decay the first and second moment running average coefficient
-                # In-place operations to update the averages at the same time
-                # exp_avg.mul_(beta1).add_(1.0 - beta1, grad)
-                # exp_avg_sq.mul_(beta2).addcmul_(1.0 - beta2, grad, grad)
-                # denom = exp_avg_sq.sqrt().add_(group["eps"])
-                #
-                # step_size = group["lr"]
-                # if group["correct_bias"]:  # No bias correction for Bert
-                #     bias_correction1 = 1.0 - beta1 ** state["step"]
-                #     bias_correction2 = 1.0 - beta2 ** state["step"]
-                #     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
-                #
-                # p.data.addcdiv_(-step_size, exp_avg, denom)
-                #
-                #
-                # # Just adding the square of the weights to the loss function is *not*
-                # # the correct way of using L2 regularization/weight decay with Adam,
-                # # since that will interact with the m and v parameters in strange ways.
-                # #
-                # # Instead we want to decay the weights in a manner that doesn't interact
-                # # with the m/v parameters. This is equivalent to adding the square
-                # # of the weights to the loss with plain (non-momentum) SGD.
-                # # Add weight decay at the end (fixed version)
-                # if group["weight_decay"] > 0.0:
-                #     p.data.add_(-group["lr"] * group["weight_decay"], p.data)
-
-        return loss
+        return None
 
 
 class omega_update(optim.SGD):

@@ -37,7 +37,7 @@ except ImportError:
 # MAS-SPECIFIC IMPORTS
 from dict_utils import convert_dict
 from mas_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_omega_grads_norm, \
-    init_reg_params_across_tasks, consolidate_reg_params
+    init_reg_params_across_tasks, consolidate_reg_params, sanity_model
 from optimizer_lib import local_sgd, omega_update_Adam, local_AdamW
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,6 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     steps_trained_in_current_epoch = 0
 
     tr_loss, logging_loss = 0.0, 0.0
-    model.tmodel.zero_grad()
     train_iterator = trange(
         epochs_trained, int(args.num_train_epochs), desc="Epoch", disable=False,
     )
@@ -131,6 +130,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     for _ in train_iterator:
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
         for step, batch in enumerate(epoch_iterator):
+            model.tmodel.zero_grad()
             # optimizer = exp_lr_scheduler(optimizer, step, args.init_lr, lr_decay_epoch=200)
             # Skip past any already trained steps if resuming training
             if steps_trained_in_current_epoch > 0:
@@ -140,25 +140,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             model.tmodel.train()
             batch = tuple(t.to(args.device) for t in batch)
             inputs = {"input_ids": batch[0], "attention_mask": batch[1], "token_type_ids": batch[2], "labels": batch[3]}
-            '''if args.model_type != "distilbert":
-                inputs["token_type_ids"] = (
-                    batch[2] if args.model_type in ["bert", "xlnet", "albert"] else None
-                )'''  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
             outputs = model.tmodel(**inputs)
             loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
 
             if args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu parallel training
-            #
-            # # Compute EWC loss & Update the total loss (For first task it is just zero)
-            # if task_num > 0:
-            #     lamda = 40
-            #     ewc_loss = compute_ewc_loss(args, lamda, task_num, all_tasks[task_num - 1], model, consolidate_fisher,
-            #                                 consolidate_mean)
-            #     loss += ewc_loss
-            #     # cd ..print()
-            #     print("************", ewc_loss, "*************")
-            # # print()
 
             loss.backward()
 
@@ -168,13 +154,12 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 
             optimizer.step(model.reg_params)
             scheduler.step()  # Update learning rate schedule
-            model.tmodel.zero_grad()
             global_step += 1
 
     optimizer_ft = omega_update_Adam(model.reg_params)
     print('Updating the omega values for this task')
-    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft
-                                     , args.device)
+    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
+    sanity_model(model)
 
     if task_num >= 1:
         model = consolidate_reg_params(model)
@@ -312,26 +297,42 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     processor = glue_processors[task]()
     output_mode = glue_output_modes[task]
-    # data_size = 8 #To take low GPU memory
-    logger.info("Creating features from dataset file at %s", args.data_dir)
-    label_list = processor.get_labels()
-    if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
-        # HACK(label indices are swapped in RoBERTa pretrained model)
-        label_list[1], label_list[2] = label_list[2], label_list[1]
-    examples = (
-        processor.get_dev_examples(os.path.join(args.data_dir, task)) if evaluate else processor.get_train_examples(
-            os.path.join(args.data_dir, task))
+
+    # Load data features from cache or dataset file
+    cached_features_file = os.path.join(
+        args.data_dir,
+        "cached_{}_{}_{}_{}".format(
+            "dev" if evaluate else "train",
+            args.model_type,
+            str(args.max_seq_length),
+            str(task),
+        ),
     )
-    features = convert_examples_to_features(
-        examples,
-        tokenizer,
-        label_list=label_list,
-        max_length=args.max_seq_length,
-        output_mode=output_mode,
-        pad_on_left=bool(args.model_type in ["xlnet"]),  # pad on the left for xlnet
-        pad_token=tokenizer.convert_tokens_to_ids([tokenizer.pad_token])[0],
-        pad_token_segment_id=4 if args.model_type in ["xlnet"] else 0,
-    )
+    if os.path.exists(cached_features_file):
+        logger.info("Loading features from cached file %s", cached_features_file)
+        features = torch.load(cached_features_file)
+    else:
+        logger.info("Creating features from dataset file at %s", args.data_dir)
+        label_list = processor.get_labels()
+        if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
+            # HACK(label indices are swapped in RoBERTa pretrained model)
+            label_list[1], label_list[2] = label_list[2], label_list[1]
+        examples = (
+            processor.get_dev_examples(os.path.join(args.data_dir, task)) if evaluate else processor.get_train_examples(
+                os.path.join(args.data_dir, task))
+        )
+        features = convert_examples_to_features(
+            examples,
+            tokenizer,
+            label_list=label_list,
+            max_length=args.max_seq_length,
+            output_mode=output_mode,
+            pad_on_left=bool(args.model_type in ["xlnet"]),  # pad on the left for xlnet
+            pad_token=tokenizer.convert_tokens_to_ids([tokenizer.pad_token])[0],
+            pad_token_segment_id=4 if args.model_type in ["xlnet"] else 0,
+        )
+        logger.info("Saving features into cached file %s", cached_features_file)
+        torch.save(features, cached_features_file)
 
     # Convert to Tensors and build dataset
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
@@ -343,7 +344,6 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
         all_labels = torch.tensor([f.label for f in features], dtype=torch.float)
 
     dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
-    # dataset = TensorDataset(all_input_ids[0:data_size], all_attention_mask[0:data_size], all_token_type_ids[0:data_size], all_labels[0:data_size])
     return dataset
 
 
@@ -412,8 +412,9 @@ def main():
             models[i][1].reg_params = models[i - 1][1].reg_params
         new_args = convert_dict(args.task_params[tasks[i]], args)
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
-        global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i,
-                                                                    tokenizer, accuracy_matrix)
+        global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1],
+                                                                 i,
+                                                                 tokenizer, accuracy_matrix)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
     print()
