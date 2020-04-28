@@ -38,7 +38,7 @@ except ImportError:
 from dict_utils import convert_dict
 from mas_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_omega_grads_norm, \
     init_reg_params_across_tasks, consolidate_reg_params, sanity_model
-from optimizer_lib import local_sgd, omega_update_Adam, local_AdamW
+from optimizer_lib import omega_update_Adam, local_AdamW
 
 logger = logging.getLogger(__name__)
 
@@ -357,10 +357,6 @@ def main():
         level=logging.INFO,
     )
 
-    # multi-gpu training (should be after apex fp16 initialization)
-    if args.n_gpu > 1:
-        model = torch.nn.DataParallel(model)
-
     # Prepare GLUE tasks
     processors = {}
     output_modes = {}
@@ -399,7 +395,14 @@ def main():
     models = []
     # Model
     for key in args.task_params:
-        models.append((key, shared_model(AutoModelForSequenceClassification.from_pretrained(args.model_type))))
+        if args.n_gpu <= 1:
+            models.append((key,
+                           shared_model(AutoModelForSequenceClassification.from_pretrained(args.model_type))))
+        else:
+            models.append((key,
+                           shared_model(torch.nn.DataParallel(
+                               AutoModelForSequenceClassification.from_pretrained(args.model_type)))))
+
     for i in range(n):
         models[i][1].to(args.device)
         save_model(args, i, models[i][1])

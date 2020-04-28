@@ -16,7 +16,7 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
     """
     Input:
     1) model: A reference to the model that is being trained
-    2) use_gpu: Set the flag to True if the model is to be trained on the GPU
+    2) device: GPU
     3) freeze_layers: A list containing the layers for which omega is not calculated. Useful in the
         case of computational limitations where computing the importance parameters for the entire model
         is not feasible
@@ -88,7 +88,7 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
     """
     Input:
     1) model: A reference to the model that is being trained
-    2) use_gpu: Set the flag to True if the model is to be trained on the GPU
+    2) device: GPU
     3) freeze_layers: A list containing the layers for which omega is not calculated. Useful in the
         case of computational limitations where computing the importance parameters for the entire model
         is not feasible
@@ -180,7 +180,7 @@ def compute_omega_grads_norm(model, dataloader, optimizer, device):
     1) model: A reference to the model for which omega is to be calculated
     2) dataloader: A dataloader to feed the data to the model
     3) optimizer: An instance of the "omega_update" class
-    4) use_gpu: Flag is set to True if the model is to be trained on the GPU
+    4) device: GPU
 
     Outputs:
     1) model: An updated reference to the model is returned
