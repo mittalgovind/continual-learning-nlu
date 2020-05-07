@@ -10,4 +10,4 @@ python main.py --data_dir "data" --task_params configs/example_task_1.json --tok
 
 Go into ./MAS and run
 
-python main.py --data_dir "../data" --task_params "example_task.json" --cuda --tokenizer_name "bert" --do_lower_case --model_type "bert-base-uncased" --output_dir "out" --num_train_epochs 1 --seed 42 --init_lr=0.00005 --reg_lambda 1e6
+python main.py --data_dir "../data" --task_params "example_task.json" --cuda --tokenizer_name "bert" --do_lower_case --model_type "bert-base-uncased" --output_dir "out" --num_train_epochs 1 --seed 42 --init_lr=0.00005 --reg_lambda 50
