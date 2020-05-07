@@ -17,7 +17,8 @@ class local_AdamW(optim.Optimizer):
         correct_bias (bool): can be set to False to avoid correcting bias in Adam (e.g. like in Bert TF repository). Default True.
     """
 
-    def __init__(self, params, reg_lambda, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
+    def __init__(self, params, reg_lambda, freeze_layers=['classifier.weight', 'classifier.bias'],
+                 lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {} - should be >= 0.0".format(lr))
         if not 0.0 <= betas[0] < 1.0:
@@ -29,6 +30,7 @@ class local_AdamW(optim.Optimizer):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
         super().__init__(params, defaults)
         self.reg_lambda = reg_lambda
+        self.freeze_layers = freeze_layers
 
     def step(self, reg_params, closure=None):
         """Performs a single optimization step.
@@ -41,7 +43,8 @@ class local_AdamW(optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            for p in group["params"]:
+            for index, p in enumerate(group["params"]):
+                name = group["names"][index]
                 if p.grad is None:
                     continue
                 grad = p.grad.data
@@ -67,8 +70,9 @@ class local_AdamW(optim.Optimizer):
                 state["step"] += 1
 
                 ###### BEGIN MAS CODE########
-                if p in reg_params:
-                    param_dict = reg_params[p]
+                # if p in reg_params:
+                if name not in self.freeze_layers:
+                    param_dict = reg_params[name]
 
                     omega = param_dict['omega'].cuda()
                     init_val = param_dict['init_val'].cuda()
@@ -123,17 +127,20 @@ class omega_update_Adam(optim.Optimizer):
         correct_bias (bool): can be set to False to avoid correcting bias in Adam (e.g. like in Bert TF repository). Default True.
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
+    def __init__(self, params, freeze_layers=['classifier.weight', 'classifier.bias'],
+                 lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {} - should be >= 0.0".format(lr))
         if not 0.0 <= betas[0] < 1.0:
-            raise ValueError("Invalid beta parameter: {} - should be in [0.0, 1.0[".format(betas[0]))
+            raise ValueError("Invalid beta para"
+                             "meter: {} - should be in [0.0, 1.0[".format(betas[0]))
         if not 0.0 <= betas[1] < 1.0:
             raise ValueError("Invalid beta parameter: {} - should be in [0.0, 1.0[".format(betas[1]))
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {} - should be >= 0.0".format(eps))
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
         super().__init__(params, defaults)
+        self.freeze_layers = freeze_layers
 
     def step(self, reg_params, batch_index, batch_size, device):
         """Performs a single optimization step.
@@ -141,8 +148,11 @@ class omega_update_Adam(optim.Optimizer):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        i = 0
+        total = 0
         for group in self.param_groups:
-            for p in group["params"]:
+            for index, p in enumerate(group["params"]):
+                name = group["names"][index]
                 if p.grad is None:
                     continue
 
@@ -155,20 +165,22 @@ class omega_update_Adam(optim.Optimizer):
                     continue
                 zero = torch.FloatTensor(p.data.size()).zero_()
                 ###### BEGIN MAS CODE ######
-                if p in reg_params:
+                # if p in reg_params:
+                if name not in self.freeze_layers:
+
                     grad_copy = grad.clone().abs()
-                    # del grad
                     if grad_copy.equal(zero.cuda()):
-                        print('omega after zero')
-                    # grad_copy = grad.clone()
-                    param_dict = reg_params[p]
+                        # print('grad has become zero')
+                        i += 1
+                    param_dict = reg_params[name]
                     omega = param_dict['omega'].to(device)
                     current_size = (batch_index + 1) * batch_size
                     omega += (grad_copy - batch_size*batch_index*omega)/float(current_size)
-                    # zero = torch.FloatTensor(p.data.size()).zero_()
                     param_dict['omega'] = omega
-                    reg_params[p] = param_dict
+                    reg_params[name] = param_dict
+                    total += 1
                 ##### END MAS CODE ####
 
         # we don't want to update anything and using this step to only access the gradients, so loss is not calculated.
+
         return None

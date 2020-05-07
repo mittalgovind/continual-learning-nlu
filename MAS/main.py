@@ -94,14 +94,16 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     optimizer_grouped_parameters = [
         {
             "params": [p for n, p in model.tmodel.named_parameters() if not any(nd in n for nd in no_decay)],
+            "names": [n for n, p in model.tmodel.named_parameters() if not any(nd in n for nd in no_decay)],
             "weight_decay": args.weight_decay,
         },
         {"params": [p for n, p in model.tmodel.named_parameters() if any(nd in n for nd in no_decay)],
+         "names": [n for n, p in model.tmodel.named_parameters() if any(nd in n for nd in no_decay)],
          "weight_decay": 0.0},
     ]
 
+    # optimizer = torch.optim.Adam(optimizer_grouped_parameters, lr=args.init_lr, eps=args.adam_epsilon)
     optimizer = local_AdamW(optimizer_grouped_parameters, args.reg_lambda, lr=args.init_lr, eps=args.adam_epsilon)
-    # scheduler = torch.optim.SGD(optimizer_grouped_parameters, lr=args.init_lr)
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total
     )
@@ -152,14 +154,15 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             # print("************", tr_loss, "*************")
             torch.nn.utils.clip_grad_norm_(model.tmodel.parameters(), args.max_grad_norm)
 
+            # optimizer.step()
             optimizer.step(model.reg_params)
             scheduler.step()  # Update learning rate schedule
             global_step += 1
 
-    optimizer_ft = omega_update_Adam(model.reg_params)
-    print('Updating the omega values for this task')
-    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
-    sanity_model(model)
+    # optimizer_ft = omega_update_Adam(optimizer_grouped_parameters)
+    # print('Updating the omega values for this task')
+    # model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
+    # sanity_model(model)
 
     if task_num >= 1:
         model = consolidate_reg_params(model)
@@ -422,13 +425,14 @@ def main():
 
     print()
     print("***** Accuracy Matrix *****")
+    print('regularization lambda = {}'.format(args.reg_lambda))
     print()
 
     print(accuracy_matrix)
 
     print()
     print("***** Transfer Matrix *****")
-    print("Future Transfer => Upper Triangular Matrix  ||  Backward Transfer => Lower Triangular Matrix")
+    # print("Future Transfer => Upper Triangular Matrix  ||  Backward Transfer => Lower Triangular Matrix")
     print()
 
     for i in range(n):

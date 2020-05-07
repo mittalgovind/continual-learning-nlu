@@ -33,7 +33,7 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
     reg_params = dict()
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
-            print("Initializing omega values for layer", name)
+            # print("Initializing omega values for layer", name)
             omega = torch.zeros(param.size(), dtype=torch.float64)
             omega = omega.to(device)
 
@@ -45,7 +45,7 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
             param_dict['init_val'] = init_val
 
             # the key for this dictionary is the name of the layer
-            reg_params[param] = param_dict
+            reg_params[name] = param_dict
 
     model.reg_params = reg_params
 
@@ -75,8 +75,8 @@ def sanity_model(model):
 
         print(name)
 
-        if param in model.reg_params:
-            param_dict = model.reg_params[param]
+        if name in model.reg_params:
+            param_dict = model.reg_params[name]
             omega = param_dict['omega']
 
             print("Max omega is", omega.max())
@@ -107,35 +107,35 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
 
-            if param in reg_params:
-                param_dict = reg_params[param]
-                print("Initializing the omega values for layer for the new task", name)
+            # if param in reg_params:
+            param_dict = reg_params[name]
+            # print("Initializing the omega values for layer for the new task", name)
 
-                # Store the previous values of omega
-                prev_omega = param_dict['omega']
+            # Store the previous values of omega
+            prev_omega = param_dict['omega']
 
-                # Initialize a new omega
-                new_omega = torch.zeros(param.size())
-                new_omega = new_omega.to(device)
+            # Initialize a new omega
+            new_omega = torch.zeros(param.size())
+            new_omega = new_omega.to(device)
 
-                init_val = param.data.clone()
-                init_val = init_val.to(device)
+            init_val = param.data.clone()
+            init_val = init_val.to(device)
 
-                param_dict['prev_omega'] = prev_omega
-                param_dict['omega'] = new_omega
+            param_dict['prev_omega'] = prev_omega
+            param_dict['omega'] = new_omega
 
-                # store the initial values of the parameters
-                param_dict['init_val'] = init_val
+            # store the initial values of the parameters
+            param_dict['init_val'] = init_val
 
-                # the key for this dictionary is the name of the layer
-                reg_params[param] = param_dict
+            # the key for this dictionary is the name of the layer
+            reg_params[name] = param_dict
 
     model.reg_params = reg_params
 
     return model
 
 
-def consolidate_reg_params(model):
+def consolidate_reg_params(model, freeze_layers=['classifier.weight', 'classifier.bias']):
     """
     Input:
     1) model: A reference to the model that is being trained
@@ -153,9 +153,10 @@ def consolidate_reg_params(model):
     reg_params = model.reg_params
 
     for name, param in model.tmodel.named_parameters():
-        if param in reg_params:
-            param_dict = reg_params[param]
-            print("Consolidating the omega values for layer", name)
+        # if param in reg_params:
+        if name not in freeze_layers:
+            param_dict = reg_params[name]
+            # print("Consolidating the omega values for layer", name)
 
             # Store the previous values of omega
             prev_omega = param_dict['prev_omega']
@@ -167,7 +168,7 @@ def consolidate_reg_params(model):
             param_dict['omega'] = new_omega
 
             # the key for this dictionary is the name of the layer
-            reg_params[param] = param_dict
+            reg_params[name] = param_dict
 
     model.reg_params = reg_params
 
@@ -190,7 +191,8 @@ def compute_omega_grads_norm(model, dataloader, optimizer, device):
 
     """
     model.tmodel.eval()
-
+    zeroed_param_count = 0
+    total_param_count = 0
     index = 0
     for data in dataloader:
         # get the inputs and labels
@@ -219,9 +221,12 @@ def compute_omega_grads_norm(model, dataloader, optimizer, device):
         sum_norm.backward()
 
         # optimizer.step computes the omega values for the new batches of data
+        # zeroed_params, param_count = \
         optimizer.step(model.reg_params, index, len(batch[0]), device)
+        # zeroed_param_count += zeroed_params
+        # total_param_count += param_count
         # optimizer.step(model.reg_params)
         del batch
         index = index + 1
-
+    # print('Grad has become zero for {} out of {} params'.format(zeroed_param_count, total_param_count))
     return model
