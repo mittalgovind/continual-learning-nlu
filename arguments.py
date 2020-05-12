@@ -56,8 +56,20 @@ def parse_args():
                         action="store_true",
                         default=False
                         )
-    parser.add_argument("--lamda",
-                        default=1000,
+    parser.add_argument("--ewc_lamda",
+                        default=1000000,
+                        type=float
+                        )
+    parser.add_argument("--mas",
+                        action="store_true",
+                        default=False
+                        )
+    parser.add_argument("--mas_lambda",
+                        default=50,
+                        type=float
+                        )
+    parser.add_argument("--mas_init_lr",
+                        default=0.00005,
                         type=float
                         )
 

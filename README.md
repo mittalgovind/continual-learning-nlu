@@ -4,7 +4,7 @@ python main.py --data_dir "data" --task_params "configs/example_task_1.json" --c
 
 ## EWC
 
-python main.py --data_dir "data" --task_params configs/example_task_1.json --tokenizer_name "bert" --do_lower_case --model_type "bert-base-uncased" --output_dir "out" --num_train_epochs 2 --seed 42 --ewc --lamda 1000000
+python main.py --data_dir "data" --task_params configs/example_task_1.json --tokenizer_name "bert" --do_lower_case --model_type "bert-base-uncased" --output_dir "out" --num_train_epochs 2 --seed 42 --ewc --ewc_lamda 1000000 --cuda
 
 ## MAS
 
