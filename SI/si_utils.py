@@ -71,7 +71,7 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
             param_dict = reg_params[name]
-            print("Initializing the omega values for layer for the new task", name)
+            # print("Initializing the omega values for layer for the new task", name)
 
             param_dict['small_omega'] = torch.zeros(param.data.size(), dtype=torch.float64).cuda()
             # Store the previous values of omega
@@ -133,7 +133,7 @@ def consolidate_reg_params(model):
     for name, param in model.tmodel.named_parameters():
         if param in reg_params:
             param_dict = reg_params[param]
-            print("Consolidating the omega values for layer", name)
+            # print("Consolidating the omega values for layer", name)
 
             # Store the previous values of omega
             prev_big_omega = param_dict['prev_big_omega']
@@ -203,3 +203,4 @@ def compute_omega_grads_norm(model, dataloader, optimizer, device):
         index = index + 1
 
     return model
+

@@ -34,9 +34,9 @@ from si_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_om
     init_reg_params_across_tasks, consolidate_reg_params, sanity_model
 from optimizer_lib import omega_update_Adam, local_AdamW
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
-
+logging.disable(3)
 def set_seed(seed, n_gpu):
     random.seed(seed)
     np.random.seed(seed)
@@ -100,15 +100,15 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     )
 
     # Train!
-    logger.info("***** Running training *****")
-    logger.info("  Num examples = %d", len(train_dataset))
-    logger.info("  Num Epochs = %d", args.num_train_epochs)
-    logger.info("  Instantaneous batch size per GPU = %d", args.per_gpu_batch_size)
-    logger.info(
-        "  Total train batch size (w. parallel, distributed & accumulation) = %d",
-        args.train_batch_size,
-    )
-    logger.info("  Total optimization steps = %d", t_total)
+    # logger.info("***** Running training *****")
+    # logger.info("  Num examples = %d", len(train_dataset))
+    # logger.info("  Num Epochs = %d", args.num_train_epochs)
+    # logger.info("  Instantaneous batch size per GPU = %d", args.per_gpu_batch_size)
+    # logger.info(
+    #     "  Total train batch size (w. parallel, distributed & accumulation) = %d",
+    #     args.train_batch_size,
+    # )
+    # logger.info("  Total optimization steps = %d", t_total)
 
     global_step = 0
     epochs_trained = 0
@@ -121,8 +121,9 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     set_seed(args.seed, args.n_gpu)
 
     for _ in train_iterator:
-        epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
-        for step, batch in enumerate(epoch_iterator):
+        # epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
+        for step, batch in enumerate(train_dataloader):
+            # for step, batch in enumerate(epoch_iterator):
             model.tmodel.zero_grad()
             # optimizer = exp_lr_scheduler(optimizer, step, args.init_lr, lr_decay_epoch=200)
             # Skip past any already trained steps if resuming training
@@ -150,9 +151,9 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             global_step += 1
 
     optimizer_ft = omega_update_Adam(optimizer_grouped_parameters)
-    print('Updating the omega values for this task')
+    # print('Updating the omega values for this task')
     model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
-    sanity_model(model)
+    # sanity_model(model)
 
     # if task_num >= 1:
     #     model = consolidate_reg_params(model)
@@ -175,7 +176,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
 
     for key, value in logs.items():
         tb_writer.add_scalar(key, value, global_step)
-    print(json.dumps({**logs, **{"step": global_step}}))
+    # print(json.dumps({**logs, **{"step": global_step}}))
 
     '''if args.save_steps > 0 and global_step % args.save_steps == 0:
         # Save model checkpoint
@@ -190,11 +191,12 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
         tokenizer.save_pretrained(output_dir)
 
         torch.save(args, os.path.join(output_dir, "training_args.bin"))
-        logger.info("Saving model checkpoint to %s", output_dir)
+        # logger.info("Saving model checkpoint to %s", output_dir)
 
         torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
         torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
-        logger.info("Saving optimizer and scheduler states to %s", output_dir)'''
+        # logger.info("Saving optimizer and scheduler states to %s", output_dir)
+        '''
 
     save_model(args, task_num, model)
 
@@ -237,14 +239,15 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
         eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
         # Eval!
-        logger.info("***** Running evaluation:: Task : {}, Prefix : {} *****".format(task, prefix))
-        logger.info("  Num examples = %d", len(eval_dataset))
-        logger.info("  Batch size = %d", args.eval_batch_size)
+        # logger.info("***** Running evaluation:: Task : {}, Prefix : {} *****".format(task, prefix))
+        # logger.info("  Num examples = %d", len(eval_dataset))
+        # logger.info("  Batch size = %d", args.eval_batch_size)
         eval_loss = 0.0
         nb_eval_steps = 0
         preds = None
         out_label_ids = None
-        for batch in tqdm(eval_dataloader, desc="Evaluating"):
+        for batch in eval_dataloader:
+        # for batch in tqdm(eval_dataloader, desc="Evaluating"):
             model.tmodel.eval()
             batch = tuple(t.to(args.device) for t in batch)
 
@@ -277,11 +280,11 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
 
         output_eval_file = os.path.join(eval_output_dir, prefix, "eval_results.txt")
         with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results {} *****".format(prefix))
+            # logger.info("***** Eval results {} *****".format(prefix))
             print(result)
             accuracy_matrix[train_task_num][current_task_num] = format(result['acc'], ".2f")
         # for key in sorted(result.keys()):
-        #	logger.info("  %s = %s", key, str(result[key]))
+# #         #	gger.info("  %s = %s", key, str(result[key]))
         #	writer.write("%s = %s\n" % (key, str(result[key])))
 
     return results, accuracy_matrix
@@ -302,10 +305,10 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
         ),
     )
     if os.path.exists(cached_features_file):
-        logger.info("Loading features from cached file %s", cached_features_file)
+        # logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
     else:
-        logger.info("Creating features from dataset file at %s", args.data_dir)
+        # logger.info("Creating features from dataset file at %s", args.data_dir)
         label_list = processor.get_labels()
         if task in ["mnli", "mnli-mm"] and args.model_type in ["roberta", "xlmroberta"]:
             # HACK(label indices are swapped in RoBERTa pretrained model)
@@ -324,7 +327,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
             pad_token=tokenizer.convert_tokens_to_ids([tokenizer.pad_token])[0],
             pad_token_segment_id=4 if args.model_type in ["xlnet"] else 0,
         )
-        logger.info("Saving features into cached file %s", cached_features_file)
+        # logger.info("Saving features into cached file %s", cached_features_file)
         torch.save(features, cached_features_file)
 
     # Convert to Tensors and build dataset
@@ -340,9 +343,9 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     return dataset
 
 
-def main():
+def loader(lamda):
     args = parse_args()
-
+    args.reg_lambda = lamda
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -412,25 +415,25 @@ def main():
         global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1],
                                                                  i, tokenizer, accuracy_matrix)
         torch.save(new_model, 'mrpc_model_2_5e5.ckpt')
-        logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+        # logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
-    print()
-    print("***** Accuracy Matrix *****")
-    print('regularization lambda = {}'.format(args.reg_lambda))
-
-    print(accuracy_matrix)
-
-    print()
-    print("***** Transfer Matrix *****")
-    # print("Future Transfer => Upper Triangular Matrix  ||  Backward Transfer => Lower Triangular Matrix")
-    print()
+    # print()
+    # print("***** Accuracy Matrix *****")
+    # print('regularization lambda = {}'.format(args.reg_lambda))
+    #
+    # print(accuracy_matrix)
+    #
+    # print()
+    # print("***** Transfer Matrix *****")
+    # # print("Future Transfer => Upper Triangular Matrix  ||  Backward Transfer => Lower Triangular Matrix")
+    # print()
 
     for i in range(n):
         for j in range(n):
             transfer_matrix[j][i] = accuracy_matrix[j][i] - accuracy_matrix[i][i]
 
-    print(transfer_matrix)
+    # print(transfer_matrix)
+    return accuracy_matrix, transfer_matrix
 
-
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()

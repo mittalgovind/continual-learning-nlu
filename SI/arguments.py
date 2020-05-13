@@ -7,17 +7,18 @@ def parse_args():
 	parser.add_argument("--data_dir", 
 						type=str,
 						default="../data",
-						required=True,
+						# required=True,
 						)
 	parser.add_argument("--task_params", 
 						type=str,
-						required=True,
+						default='single_task.json',
+						# required=True,
 						help="JSON file path"
 						)
-	parser.add_argument("--output_dir", 
+	parser.add_argument("--output_dir",
 						type=str,
 						default="./output",
-						required=True,
+						# required=True,
 						)
 	parser.add_argument("--per_gpu_batch_size", 
 						default=8, 
@@ -25,19 +26,20 @@ def parse_args():
 						help="Batch size per GPU",
 						)
 	parser.add_argument("--cuda", 
-						action="store_true",
+						action="store_false",
 						)
 	parser.add_argument("--tokenizer_name", 
 						type=str,
-						required=True,
+						default='bert'
+						# required=True,
 						)
 	parser.add_argument("--do_lower_case", 
 						action="store_true",
 						)
 	parser.add_argument("--model_type",
-						default=None,
+						default='bert-base-uncased',
 						type=str,
-						required=True,
+						# required=True,
 						)
 	parser.add_argument("--max_seq_length",
 						default=128,
@@ -51,7 +53,7 @@ def parse_args():
 						default=42,
 						type=int,
 						)
-	parser.add_argument('--init_lr', default=0.001, type=float, help='Initial learning rate for training the model')
+	parser.add_argument('--init_lr', default=5e-5, type=float, help='Initial learning rate for training the model')
 	parser.add_argument('--reg_lambda', default=0.01, type=float, help='Regularization parameter')
 
 	args = parser.parse_args()
