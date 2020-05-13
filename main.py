@@ -246,10 +246,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             # Compute EWC loss & Update the total loss (For first task it is just zero)
             if task_num > 0 and args.ewc:
                 lamda = args.ewc_lamda
-                ewc_loss = compute_ewc_loss(args, lamda, task_num, all_tasks[task_num - 1], model,
-                                            consolidate_fisher, consolidate_mean)
+                for i in range(task_num):
+                    ewc_loss = compute_ewc_loss(args, lamda/task_num, task_num, all_tasks[i], model,
+                                                consolidate_fisher, consolidate_mean)
                 # print("EWC:{}, Normal:{}, Total:{}".format(ewc_loss, loss, loss+ewc_loss))
-                loss += ewc_loss
+                    loss += ewc_loss
             loss.backward()
 
             tr_loss += loss.item()
@@ -271,6 +272,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
                     accuracy_matrix[task_num][task_num] = current_accuracy
                 else:
                     save_model(args, task_num, model)
+                    new_model_state = model.state_dict().copy()
                     # Evaluating on all tasks - both forward and backward transfer
                     for i in range(len(all_tasks)):
                         part_name = partial_name(args)
@@ -300,6 +302,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
                             results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix,
                                                                 task_num, i,
                                                                 "Future Task (Continual)")
+                    model.load_state_dict(new_model_state)
 
     if args.mas:
         # optimizer_ft = omega_update_Adam(model.reg_params)
@@ -337,7 +340,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
         torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
         logger.info("Saving optimizer and scheduler states to %s", output_dir)'''
     tb_writer.close()
-
+    part_name = partial_name(args)
+    model.load_state_dict(torch.load(os.path.join(args.output_dir, part_name, "bert_paramters_" + str(task_num) + ".pt")),
+                            strict=False)
+    model.load_state_dict(torch.load(os.path.join(args.output_dir, part_name, "task_paramters_" + str(task_num) + ".pt")),
+                            strict=False)
     return global_step, tr_loss / global_step, accuracy_matrix, model
 
 
@@ -555,7 +562,7 @@ def main():
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
         # --- No randomness till here ---
         global_step, tr_loss, accuracy_matrix, model = train(new_args, train_dataset, tasks[i], tasks, models[i][1], i,
-                                                      tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean)
+                                                            tokenizer, accuracy_matrix, consolidate_fisher, consolidate_mean)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
         if args.ewc:
             if (i == (len(configs)-1)):
