@@ -399,6 +399,12 @@ def main():
     # Model
     for key in args.task_params:
         if args.n_gpu <= 1:
+            # if key == 'mrpc':
+            #     models.append((key,
+            #                    torch.load('mrpc_bert_2_5e5.ckpt')))
+            #                    # shared_model(AutoModelForSequenceClassification.from_pretrained(args.model_type))))
+            #     accuracy_matrix = np.array([[0.86 , 0.5], [0, 0]])
+            # else:
             models.append((key,
                            shared_model(AutoModelForSequenceClassification.from_pretrained(args.model_type))))
         else:
@@ -411,16 +417,18 @@ def main():
         save_model(args, i, models[i][1])
 
     for i in range(len(configs)):
-        if (i > 0):
+        # if i == 0 and models[i][0] == 'mrpc':
+        #     continue
+        # else:
+        if i > 0:
             # Always load the BERT parameters of previous model
             models[i][1].tmodel.load_state_dict(
                 torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i - 1) + ".pt")), strict=False)
-            models[i][1].reg_params = models[i - 1][1].reg_params
+        models[i][1].reg_params = models[i - 1][1].reg_params
         new_args = convert_dict(args.task_params[tasks[i]], args)
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
         global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1],
-                                                                 i,
-                                                                 tokenizer, accuracy_matrix)
+                                                                 i, tokenizer, accuracy_matrix)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
     print()
