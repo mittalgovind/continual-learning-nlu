@@ -81,7 +81,7 @@ def sanity_model(model):
 
             print("Max omega is", omega.max())
             print("Min omega is", omega.min())
-            print("Mean value of omega is", omega.min())
+            print("Mean value of omega is", omega.mean())
 
 
 def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weight', 'classifier.bias']):

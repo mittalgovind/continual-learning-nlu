@@ -17,7 +17,8 @@ class local_AdamW(optim.Optimizer):
         correct_bias (bool): can be set to False to avoid correcting bias in Adam (e.g. like in Bert TF repository). Default True.
     """
 
-    def __init__(self, params, reg_lambda, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
+    def __init__(self, params, reg_lambda, freeze_layers=['classifier.weight', 'classifier.bias'],
+                 lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {} - should be >= 0.0".format(lr))
         if not 0.0 <= betas[0] < 1.0:
@@ -29,8 +30,9 @@ class local_AdamW(optim.Optimizer):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
         super().__init__(params, defaults)
         self.reg_lambda = reg_lambda
+        self.freeze_layers = freeze_layers
 
-    def step(self, reg_params, closure=None):
+    def step(self, reg_params, batch_index, batch_size, closure=None):
         """Performs a single optimization step.
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
@@ -41,7 +43,8 @@ class local_AdamW(optim.Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            for p in group["params"]:
+            for index, p in enumerate(group["params"]):
+                name = group["names"][index]
                 if p.grad is None:
                     continue
                 grad = p.grad.data
@@ -63,49 +66,51 @@ class local_AdamW(optim.Optimizer):
 
                 exp_avg, exp_avg_sq = state["exp_avg"], state["exp_avg_sq"]
                 beta1, beta2 = group["betas"]
-
+                lr = group["lr"]
                 state["step"] += 1
 
                 ###### BEGIN SI CODE########
-                if p in reg_params:
-
+                if name not in self.freeze_layers:
                     # update gradient with SI regularization
-                    param_dict = reg_params[p]
+                    param_dict = reg_params[name]
 
+                    small_omega = param_dict['small_omega'].cuda()
                     big_omega = param_dict['big_omega'].cuda()
-                    prev_wt = param_dict['prev_wt'].cuda()
+                    init_val = param_dict['init_val'].cuda()
                     curr_param_value = p.data.cuda()
 
                     # get the difference
-                    param_diff = curr_param_value - prev_wt
+                    param_diff = torch.sub(curr_param_value, init_val)
 
                     # get the gradient for the penalty term for change in the weights of the parameters
                     importance_grad = torch.mul(param_diff, 2 * self.reg_lambda * big_omega)
 
                     # update small omega
-                    param_dict['small_omega'] -= self.lr * grad * param_diff
+                    current_size = (batch_index + 1) * batch_size
+                    small_omega_update = torch.mul(grad, param_diff)
+                    small_omega_update = torch.sub(small_omega_update, batch_size * batch_index * small_omega)
+                    small_omega_update = torch.div(small_omega_update, float(current_size))
+                    param_dict['small_omega'] = torch.sub(small_omega, lr * small_omega_update)
 
                     # add the surrogate loss
-                    grad += importance_grad
-                    del param_diff, big_omega, prev_wt, curr_param_value
+                    grad = torch.add(grad, importance_grad)
+                    del param_diff, big_omega, init_val, curr_param_value
                     del importance_grad
-
                 ###### END SI CODE#######
 
                 # Decay the first and second moment running average coefficient
                 # In-place operations to update the averages at the same time
+                grad = grad.float()
                 exp_avg.mul_(beta1).add_(1.0 - beta1, grad)
                 exp_avg_sq.mul_(beta2).addcmul_(1.0 - beta2, grad, grad)
                 denom = exp_avg_sq.sqrt().add_(group["eps"])
 
-                step_size = group["lr"]
                 if group["correct_bias"]:  # No bias correction for Bert
                     bias_correction1 = 1.0 - beta1 ** state["step"]
                     bias_correction2 = 1.0 - beta2 ** state["step"]
-                    step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
+                    lr = lr * math.sqrt(bias_correction2) / bias_correction1
 
-                p.data.addcdiv_(-step_size, exp_avg, denom)
-
+                p.data.addcdiv_(-lr, exp_avg, denom)
 
                 # Just adding the square of the weights to the loss function is *not*
                 # the correct way of using L2 regularization/weight decay with Adam,
@@ -131,7 +136,8 @@ class omega_update_Adam(optim.Optimizer):
         correct_bias (bool): can be set to False to avoid correcting bias in Adam (e.g. like in Bert TF repository). Default True.
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
+    def __init__(self, params, freeze_layers=['classifier.weight', 'classifier.bias'],
+                 lr=1e-3, betas=(0.9, 0.999), eps=1e-6, weight_decay=0.0, correct_bias=True):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {} - should be >= 0.0".format(lr))
         if not 0.0 <= betas[0] < 1.0:
@@ -142,6 +148,8 @@ class omega_update_Adam(optim.Optimizer):
             raise ValueError("Invalid epsilon value: {} - should be >= 0.0".format(eps))
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
         super().__init__(params, defaults)
+        self.freeze_layers = freeze_layers
+        self.xi = 0.1
 
     def step(self, reg_params, batch_index, batch_size, device, closure=None):
         """Performs a single optimization step.
@@ -149,12 +157,9 @@ class omega_update_Adam(optim.Optimizer):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
-        loss = None
-        if closure is not None:
-            loss = closure()
-
         for group in self.param_groups:
-            for p in group["params"]:
+            for index, p in enumerate(group["params"]):
+                name = group["names"][index]
                 if p.grad is None:
                     continue
 
@@ -167,158 +172,24 @@ class omega_update_Adam(optim.Optimizer):
                     continue
                 zero = torch.FloatTensor(p.data.size()).zero_()
                 ###### BEGIN SI CODE ######
-                if p in reg_params:
-                    # UPDATE BIG OMEGA
+                if name not in self.freeze_layers:
+                    param_dict = reg_params[name]
 
-                    grad_copy = grad.clone().abs()
-                    if grad_copy.equal(zero.cuda()):
-                        print('omega after zero')
-                    param_dict = reg_params[p]
+                    # UPDATE BIG OMEGA
                     big_omega = param_dict['big_omega'].to(device)
                     small_omega = param_dict['small_omega'].to(device)
-                    prev_wt = param_dict['prev_wt']
+                    init_val = param_dict['init_val']
                     curr_wt = p.data.cuda()
-                    delta = curr_wt - prev_wt
 
-                    running_avg_multiplier = task_num * 1
-                    big_omega += small_omega/(delta**2 + self.xi)
-
-                    # current_size = (batch_index + 1) * batch_size
-                    # omega += (grad_copy - batch_size*batch_index*omega)/float(current_size)
+                    delta = torch.sub(curr_wt, init_val)
+                    big_omega_update = small_omega / (delta ** 2 + self.xi)
+                    current_size = (batch_index + 1) * batch_size
+                    big_omega_update = torch.sub(big_omega_update, batch_size * batch_index * big_omega)
+                    big_omega_update = torch.div(big_omega_update, float(current_size))
+                    big_omega = torch.add(big_omega, big_omega_update)
+                    big_omega += (big_omega_update - batch_size * batch_index * big_omega) / float(current_size)
                     param_dict['big_omega'] = big_omega
-
-                    # RESET SMALL OMEGA
-                    param_dict['small_omega'] = torch.zeros(p.data.size(), dtype=torch.float64)
-                    param_dict['prev_wt'] = p.data
 
                     reg_params[p] = param_dict
 
-
         return None
-
-#
-# class omega_update(optim.SGD):
-#
-#     def __init__(self, params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False):
-#         super(omega_update, self).__init__(params, lr, momentum, dampening, weight_decay, nesterov)
-#
-#     def __setstate__(self, state):
-#         super(omega_update, self).__setstate__(state)
-#
-#     def step(self, reg_params, batch_index, batch_size, device, closure=None):
-#         loss = None
-#
-#         if closure is not None:
-#             loss = closure()
-#
-#         for group in self.param_groups:
-#             weight_decay = group['weight_decay']
-#             momentum = group['momentum']
-#             dampening = group['dampening']
-#             nesterov = group['nesterov']
-#
-#             for p in group['params']:
-#                 if p.grad is None:
-#                     continue
-#
-#                 if p in reg_params:
-#                     grad_data = p.grad.data
-#
-#                     # The absolute value of the grad_data that is to be added to omega
-#                     grad_data_copy = p.grad.data.clone()
-#                     grad_data_copy = grad_data_copy.abs()
-#
-#                     param_dict = reg_params[p]
-#
-#                     omega = param_dict['omega']
-#                     omega = omega.to(device)
-#
-#                     current_size = (batch_index + 1) * batch_size
-#                     step_size = 1 / float(current_size)
-#
-#                     # Incremental update for the omega
-#                     omega = omega + step_size * (grad_data_copy - batch_size * omega)
-#
-#                     param_dict['omega'] = omega
-#
-#                     reg_params[p] = param_dict
-#
-#         return loss
-
-
-# class omega_vector_update(optim.SGD):
-#
-#     def __init__(self, params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False):
-#         super(omega_vector_update, self).__init__(params, lr, momentum, dampening, weight_decay, nesterov)
-#
-#     def __setstate__(self, state):
-#         super(omega_vector_update, self).__setstate__(state)
-#
-#     def step(self, reg_params, finality, batch_index, batch_size, device, closure=None):
-#         loss = None
-#
-#         if closure is not None:
-#             loss = closure()
-#
-#         for group in self.param_groups:
-#             weight_decay = group['weight_decay']
-#             momentum = group['momentum']
-#             dampening = group['dampening']
-#             nesterov = group['nesterov']
-#
-#             for p in group['params']:
-#                 if p.grad is None:
-#                     continue
-#
-#                 if p in reg_params:
-#
-#                     grad_data = p.grad.data
-#
-#                     # The absolute value of the grad_data that is to be added to omega
-#                     grad_data_copy = p.grad.data.clone()
-#                     grad_data_copy = grad_data_copy.abs()
-#
-#                     param_dict = reg_params[p]
-#
-#                     if not finality:
-#
-#                         if 'temp_grad' in reg_params.keys():
-#                             temp_grad = param_dict['temp_grad']
-#
-#                         else:
-#                             temp_grad = torch.FloatTensor(p.data.size()).zero_()
-#                             temp_grad = temp_grad.to(device)
-#
-#                         temp_grad = temp_grad + grad_data_copy
-#                         param_dict['temp_grad'] = temp_grad
-#
-#                         del temp_data
-#
-#
-#                     else:
-#
-#                         # temp_grad variable
-#                         temp_grad = param_dict['temp_grad']
-#                         temp_grad = temp_grad + grad_data_copy
-#
-#                         # omega variable
-#                         omega = param_dict['omega']
-#                         omega.to(device)
-#
-#                         current_size = (batch_index + 1) * batch_size
-#                         step_size = 1 / float(current_size)
-#
-#                         # Incremental update for the omega
-#                         omega = omega + step_size * (temp_grad - batch_size * (omega))
-#
-#                         param_dict['omega'] = omega
-#
-#                         reg_params[p] = param_dict
-#
-#                         del omega
-#                         del param_dict
-#
-#                     del grad_data
-#                     del grad_data_copy
-#
-#         return loss

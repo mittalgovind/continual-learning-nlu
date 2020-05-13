@@ -30,7 +30,7 @@ except ImportError:
 
 # MAS-SPECIFIC IMPORTS
 from dict_utils import convert_dict
-from mas_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_omega_grads_norm, \
+from si_utils import init_reg_params, shared_model, exp_lr_scheduler, compute_omega_grads_norm, \
     init_reg_params_across_tasks, consolidate_reg_params, sanity_model
 from optimizer_lib import omega_update_Adam, local_AdamW
 
@@ -86,9 +86,11 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     optimizer_grouped_parameters = [
         {
             "params": [p for n, p in model.tmodel.named_parameters() if not any(nd in n for nd in no_decay)],
+            "names": [n for n, p in model.tmodel.named_parameters() if not any(nd in n for nd in no_decay)],
             "weight_decay": args.weight_decay,
         },
         {"params": [p for n, p in model.tmodel.named_parameters() if any(nd in n for nd in no_decay)],
+         "names": [n for n, p in model.tmodel.named_parameters() if any(nd in n for nd in no_decay)],
          "weight_decay": 0.0},
     ]
 
@@ -143,17 +145,17 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             # print("************", tr_loss, "*************")
             torch.nn.utils.clip_grad_norm_(model.tmodel.parameters(), args.max_grad_norm)
 
-            optimizer.step(model.reg_params)
+            optimizer.step(model.reg_params, step, len(batch[0]))
             scheduler.step()  # Update learning rate schedule
             global_step += 1
 
-    optimizer_ft = omega_update_Adam(model.reg_params)
+    optimizer_ft = omega_update_Adam(optimizer_grouped_parameters)
     print('Updating the omega values for this task')
     model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
     sanity_model(model)
 
-    if task_num >= 1:
-        model = consolidate_reg_params(model)
+    # if task_num >= 1:
+    #     model = consolidate_reg_params(model)
 
     logs = {}
 

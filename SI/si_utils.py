@@ -48,34 +48,6 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
     return model
 
 
-def exp_lr_scheduler(optimizer, epoch, init_lr=0.0008, lr_decay_epoch=20):
-    """
-    Decay learning rate by a factor of 0.1 every lr_decay_epoch epochs.
-    """
-    lr = init_lr * (0.1 ** (epoch // lr_decay_epoch))
-    print('lr is ' + str(lr))
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-    return optimizer
-
-
-# sanity check for the model to check if the omega values are getting updated
-def sanity_model(model):
-    for name, param in model.tmodel.named_parameters():
-
-        print(name)
-
-        if param in model.reg_params:
-            param_dict = model.reg_params[param]
-            omega = param_dict['omega']
-
-            print("Max omega is", omega.max())
-            print("Min omega is", omega.min())
-            print("Mean value of omega is", omega.min())
-
-
 def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weight', 'classifier.bias']):
     """
     Input:
@@ -98,33 +70,47 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
     reg_params = model.reg_params
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
+            param_dict = reg_params[name]
+            print("Initializing the omega values for layer for the new task", name)
 
-            if param in reg_params:
-                param_dict = reg_params[param]
-                print("Initializing the omega values for layer for the new task", name)
+            param_dict['small_omega'] = torch.zeros(param.data.size(), dtype=torch.float64).cuda()
+            # Store the previous values of omega
+            param_dict['prev_big_omega'] = param_dict['big_omega']
+            # Initialize a new omega
+            param_dict['big_omega'] = torch.zeros(param.data.size(), dtype=torch.float64).cuda()
 
-                # Store the previous values of omega
-                prev_val = param_dict['prev_wt']
+            # store the initial values of the parameters
+            init_val = param.data.clone()
+            init_val = init_val.to(device)
+            param_dict['init_val'] = init_val
 
-                # Initialize a new omega
-                new_omega = torch.zeros(param.size())
-                new_omega = new_omega.to(device)
-
-                init_val = param.data.clone()
-                init_val = init_val.to(device)
-
-                param_dict['prev_omega'] = prev_omega
-                param_dict['omega'] = new_omega
-
-                # store the initial values of the parameters
-                param_dict['init_val'] = init_val
-
-                # the key for this dictionary is the name of the layer
-                reg_params[param] = param_dict
-
-
-
+            # the key for this dictionary is the name of the layer
+            reg_params[name] = param_dict
     return model
+
+
+def exp_lr_scheduler(optimizer, epoch, init_lr=0.0008, lr_decay_epoch=20):
+    """
+    Decay learning rate by a factor of 0.1 every lr_decay_epoch epochs.
+    """
+    lr = init_lr * (0.1 ** (epoch // lr_decay_epoch))
+    print('lr is ' + str(lr))
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+    return optimizer
+
+
+# sanity check for the model to check if the omega values are getting updated
+def sanity_model(model, freeze_layers=['classifier.weight', 'classifier.bias']):
+    for name, param in model.tmodel.named_parameters():
+        if name not in freeze_layers:
+            print(name)
+            param_dict = model.reg_params[name]
+            print("Mean value of omega is", param_dict['big_omega'].mean())
+            print("Max omega is", param_dict['big_omega'].max())
+            print("Min omega is", param_dict['big_omega'].min())
 
 
 def consolidate_reg_params(model):
@@ -150,13 +136,13 @@ def consolidate_reg_params(model):
             print("Consolidating the omega values for layer", name)
 
             # Store the previous values of omega
-            prev_omega = param_dict['prev_omega']
-            new_omega = param_dict['omega']
+            prev_big_omega = param_dict['prev_big_omega']
+            new_big_omega = param_dict['big_omega']
 
-            new_omega = torch.add(prev_omega, new_omega)
-            del param_dict['prev_omega']
+            new_big_omega = torch.add(prev_big_omega, new_big_omega)
+            del param_dict['prev_big_omega']
 
-            param_dict['omega'] = new_omega
+            param_dict['big_omega'] = new_big_omega
 
             # the key for this dictionary is the name of the layer
             reg_params[param] = param_dict

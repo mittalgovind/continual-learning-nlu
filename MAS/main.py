@@ -159,10 +159,10 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
             scheduler.step()  # Update learning rate schedule
             global_step += 1
 
-    # optimizer_ft = omega_update_Adam(optimizer_grouped_parameters)
-    # print('Updating the omega values for this task')
-    # model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
-    # sanity_model(model)
+    optimizer_ft = omega_update_Adam(optimizer_grouped_parameters)
+    print('Updating the omega values for this task')
+    model = compute_omega_grads_norm(model, train_dataloader, optimizer_ft, args.device)
+    sanity_model(model)
 
     if task_num >= 1:
         model = consolidate_reg_params(model)
