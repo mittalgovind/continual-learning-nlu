@@ -408,8 +408,8 @@ def main():
         new_args = convert_dict(args.task_params[tasks[i]], args)
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
         global_step, tr_loss, accuracy_matrix, new_model = train(new_args, train_dataset, tasks[i], tasks, models[i][1],
-                                                                 i,
-                                                                 tokenizer, accuracy_matrix)
+                                                                 i, tokenizer, accuracy_matrix)
+        torch.save(new_model, 'mrpc_model_2_5e5.ckpt')
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
     print()

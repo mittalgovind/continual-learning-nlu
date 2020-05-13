@@ -106,8 +106,6 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
     reg_params = model.reg_params
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
-
-            # if param in reg_params:
             param_dict = reg_params[name]
             # print("Initializing the omega values for layer for the new task", name)
 

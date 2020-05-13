@@ -32,20 +32,19 @@ def init_reg_params(model, device, freeze_layers=['classifier.weight', 'classifi
     reg_params = dict()
     for name, param in model.tmodel.named_parameters():
         if not name in freeze_layers:
-            print("Initializing omega values for layer", name)
-            prev_wt = param.data.clone()
-            param_dict = {}
+            # print("Initializing omega values for layer", name)
+            init_val = param.data.clone()
+            param_dict = dict()
 
             # for first task, omega is initialized to zero
             param_dict['small_omega'] = torch.zeros(param.size(), dtype=torch.float64)
             param_dict['big_omega'] = torch.zeros(param.size(), dtype=torch.float64)
-            param_dict['prev_wt'] = prev_wt
+            param_dict['init_val'] = init_val
 
             # the key for this dictionary is the name of the layer
-            reg_params[param] = param_dict
+            reg_params[name] = param_dict
 
     model.reg_params = reg_params
-
     return model
 
 
@@ -105,7 +104,7 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
                 print("Initializing the omega values for layer for the new task", name)
 
                 # Store the previous values of omega
-                prev_omega = param_dict['omega']
+                prev_val = param_dict['prev_wt']
 
                 # Initialize a new omega
                 new_omega = torch.zeros(param.size())
@@ -123,7 +122,7 @@ def init_reg_params_across_tasks(model, device, freeze_layers=['classifier.weigh
                 # the key for this dictionary is the name of the layer
                 reg_params[param] = param_dict
 
-    model.reg_params = reg_params
+
 
     return model
 
