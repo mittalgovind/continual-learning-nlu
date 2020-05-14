@@ -218,7 +218,7 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     set_seed(args.seed, args.n_gpu)
 
     for _ in train_iterator:
-        epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
+        # epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
         for step, batch in enumerate(epoch_iterator):
             if args.mas:
                 model.tmodel.zero_grad()
@@ -373,7 +373,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
         nb_eval_steps = 0
         preds = None
         out_label_ids = None
-        for batch in tqdm(eval_dataloader, desc="Evaluating"):
+        for batch in eval_dataloader:
             if args.mas:
                 model.tmodel.eval()
             else:

@@ -19,6 +19,7 @@ def convert_dict(config, args):
 				"data_dir": args.data_dir,
 				"max_seq_length": args.max_seq_length,
 				"reg_lambda": args.reg_lambda,
-				"init_lr": args.init_lr
+				"init_lr": args.init_lr,
+				"task_params": args.task_params
 				})
 	return out
