@@ -51,10 +51,22 @@ def set_seed(seed, n_gpu):
     if n_gpu > 0:
         torch.cuda.manual_seed_all(seed)
 
+def partial_name(args):
+    task_type = ""
+    for key in args.task_params:
+        task_type += str(key)+"_"
+    part_name = "mas_tasktype_{}lambda{}_initlr_{}_seed_{}_epochs_{}_ngpu_{}".format(task_type,
+                                                                             args.reg_lambda,
+                                                                             args.init_lr,
+                                                                             args.seed,
+                                                                             args.num_train_epochs,
+                                                                             args.n_gpu)
+    return part_name
 
 def save_model(args, task_num, model):
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    part_name = partial_name(args)
+    if not os.path.exists(os.path.join(args.output_dir, part_name)):
+        os.makedirs(os.path.join(args.output_dir, part_name))
 
     task_paramters = OrderedDict()
     bert_paramters = model.tmodel.state_dict().copy()
@@ -65,8 +77,8 @@ def save_model(args, task_num, model):
     del bert_paramters["classifier.weight"]
     del bert_paramters['classifier.bias']
 
-    torch.save(bert_paramters, os.path.join(args.output_dir, "bert_paramters_" + str(task_num) + ".pt"))
-    torch.save(task_paramters, os.path.join(args.output_dir, "task_paramters_" + str(task_num) + ".pt"))
+    torch.save(bert_paramters, os.path.join(args.output_dir, part_name, "bert_paramters_" + str(task_num) + ".pt"))
+    torch.save(task_paramters, os.path.join(args.output_dir, part_name, "task_paramters_" + str(task_num) + ".pt"))
 
     print()
     print("***** Parameters Saved for task", task_num, "*****")
@@ -212,15 +224,16 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     # Evaluating on all tasks - both forward and backward transfer
 
     for i in range(len(all_tasks)):
+        part_name = partial_name(args)
         # Previous tasks
         if (i < task_num):
-            model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")),
+            model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, part_name, "task_paramters_" + str(i) + ".pt")),
                                          strict=False)
             results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num,
                                                 i, "Previous Task (Continual)")
         # Future tasks
         elif (i > task_num):
-            model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, "task_paramters_" + str(i) + ".pt")),
+            model.tmodel.load_state_dict(torch.load(os.path.join(args.output_dir, part_name, "task_paramters_" + str(i) + ".pt")),
                                          strict=False)
             results, accuracy_matrix = evaluate(args, model, all_tasks[i], tokenizer, accuracy_matrix, task_num,
                                                 i, "Future Task (Continual)")
@@ -255,7 +268,7 @@ def evaluate(args, model, task, tokenizer, accuracy_matrix, train_task_num, curr
         nb_eval_steps = 0
         preds = None
         out_label_ids = None
-        for batch in tqdm(eval_dataloader, desc="Evaluating"):
+        for batch in eval_dataloader:
             model.tmodel.eval()
             batch = tuple(t.to(args.device) for t in batch)
 
@@ -421,9 +434,10 @@ def main():
         #     continue
         # else:
         if i > 0:
+            part_name = partial_name(args)
             # Always load the BERT parameters of previous model
             models[i][1].tmodel.load_state_dict(
-                torch.load(os.path.join(args.output_dir, "bert_paramters_" + str(i - 1) + ".pt")), strict=False)
+                torch.load(os.path.join(args.output_dir, part_name, "bert_paramters_" + str(i - 1) + ".pt")), strict=False)
         models[i][1].reg_params = models[i - 1][1].reg_params
         new_args = convert_dict(args.task_params[tasks[i]], args)
         train_dataset = load_and_cache_examples(args, tasks[i], tokenizer, evaluate=False)
