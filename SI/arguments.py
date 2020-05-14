@@ -11,7 +11,7 @@ def parse_args():
 						)
 	parser.add_argument("--task_params", 
 						type=str,
-						default='single_task.json',
+						default='example_task.json',
 						# required=True,
 						help="JSON file path"
 						)
@@ -21,7 +21,7 @@ def parse_args():
 						# required=True,
 						)
 	parser.add_argument("--per_gpu_batch_size", 
-						default=8, 
+						default=64, 
 						type=int, 
 						help="Batch size per GPU",
 						)
@@ -46,7 +46,7 @@ def parse_args():
 						type=int,
 						)
 	parser.add_argument("--num_train_epochs",
-						default=1,
+						default=2,
 						type=int,
 						)
 	parser.add_argument("--seed",

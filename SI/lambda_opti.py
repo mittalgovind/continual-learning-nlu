@@ -12,11 +12,11 @@ def train_network(lamda):
     #         '--seed',
     #         '42', '--init_lr', '0.00005', '--reg_lambda', str(lamda)]
     acc_mat, t_mat = loader(lamda)
-    print(acc_mat, t_mat)
-
+    f.write('reg_lambda={}, acc_mat={}, t_mat{}\n'.format(lamda, acc_mat, t_mat))
     return t_mat[1][0]
     # output[-1]
 
+f = open('opti_lambda_si.txt', 'w', buffering=1)
 
 space = (hp.uniformint('l', 50, 500))
 best = fmin(train_network, space, algo=rand.suggest, max_evals=50)
