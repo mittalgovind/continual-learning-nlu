@@ -350,8 +350,9 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
     return dataset
 
 
-def main():
+def loader(lamda):
     args = parse_args()
+    args.reg_lambda = lamda
 
     # Setup logging
     logging.basicConfig(
@@ -447,8 +448,8 @@ def main():
         for j in range(n):
             transfer_matrix[j][i] = accuracy_matrix[j][i] - accuracy_matrix[i][i]
 
-    print(transfer_matrix)
+    return accuracy_matrix, transfer_matrix
 
-
-if __name__ == '__main__':
-    main()
+#
+# if __name__ == '__main__':
+#     main()
