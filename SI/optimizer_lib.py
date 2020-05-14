@@ -91,11 +91,11 @@ class local_AdamW(optim.Optimizer):
                     small_omega_update = torch.sub(small_omega_update, batch_size * batch_index * small_omega)
                     small_omega_update = torch.div(small_omega_update, float(current_size))
                     param_dict['small_omega'] = torch.sub(small_omega, small_omega_update)
-
+                    reg_params[name] = param_dict
                     # add the surrogate loss
                     grad = torch.add(grad, importance_grad)
-                    del param_diff, big_omega, init_val, curr_param_value
-                    del importance_grad
+                    del param_diff, big_omega, init_val, curr_param_value, small_omega_update
+                    del importance_grad, param_dict
                 ###### END SI CODE#######
 
                 # Decay the first and second moment running average coefficient
@@ -189,7 +189,7 @@ class omega_update_Adam(optim.Optimizer):
                     big_omega = torch.add(big_omega, big_omega_update)
                     big_omega += (big_omega_update - batch_size * batch_index * big_omega) / float(current_size)
                     param_dict['big_omega'] = big_omega
-
                     reg_params[p] = param_dict
+                    del delta, big_omega, big_omega_update, current_size, param_dict
 
         return None
