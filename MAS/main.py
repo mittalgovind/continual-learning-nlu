@@ -130,8 +130,9 @@ def train(args, train_dataset, task, all_tasks, model, task_num, tokenizer, accu
     set_seed(args.seed, args.n_gpu)
 
     for _ in train_iterator:
-        epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
-        for step, batch in enumerate(epoch_iterator):
+        # epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=False)
+        for step, batch in enumerate(train_dataloader):
+        # for step, batch in enumerate(epoch_iterator):
             model.tmodel.zero_grad()
             # optimizer = exp_lr_scheduler(optimizer, step, args.init_lr, lr_decay_epoch=200)
             # Skip past any already trained steps if resuming training
