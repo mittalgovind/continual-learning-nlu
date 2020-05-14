@@ -90,7 +90,7 @@ class local_AdamW(optim.Optimizer):
                     small_omega_update = torch.mul(grad, param_diff)
                     small_omega_update = torch.sub(small_omega_update, batch_size * batch_index * small_omega)
                     small_omega_update = torch.div(small_omega_update, float(current_size))
-                    param_dict['small_omega'] = torch.sub(small_omega, lr * small_omega_update)
+                    param_dict['small_omega'] = torch.sub(small_omega, small_omega_update)
 
                     # add the surrogate loss
                     grad = torch.add(grad, importance_grad)
