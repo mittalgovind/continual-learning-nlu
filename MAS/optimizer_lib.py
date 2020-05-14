@@ -48,9 +48,6 @@ class local_AdamW(optim.Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
-                zero = torch.FloatTensor(p.data.size()).zero_()
-                if grad.equal(zero.cuda()):
-                    print('omega after zero')
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
