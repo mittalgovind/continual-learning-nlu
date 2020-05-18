@@ -13,9 +13,15 @@
 
 \documentclass[11pt,a4paper]{article}
 \usepackage[hyperref]{naaclhlt2019}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amssymb, amsmath}
+\usepackage{booktabs}
+\usepackage{natbib}
 \usepackage{times}
 \usepackage{latexsym, amsmath}
-
+% \documentclass{article}
+\usepackage{array,multirow}
 \usepackage{url}
 
 \aclfinalcopy % Uncomment this line for the final submission
@@ -24,37 +30,48 @@
 %\setlength\titlebox{5cm}
 % You can expand the titlebox if you need extra space
 % to show all the authors. Please do not make the titlebox
-% smaller than 5cm (the original size); we will check this
+% smaller than 5cm  (the original size); we will check this
 % in the camera-ready version and ask you to change it back.
 
 %%%%%%%%%%%%%%%%% GUIDELINES %%%%%%%%%%%%%%%
-% The partial draft in a single document with three pages of content (not counting references, appendix, and contribution statement). This should essentially be a near-final draft of your paper (in ACL 2020 paper style) with the results, analysis, and conclusion sections missing. It should contain a link to your public GitHub repo, which should show evidence that you have implemented everything you’ll need in order to complete your project.
 
-% Introduction/overall idea (4):
-% Clear overall motivation for project (2)
-% Clear description and motivation for any novel techniques, including baseline results (2)
+% Final paper rubric  (20 points)
+% This is roughly the same as the above, but adds points for results and analysis, and adds a requirement that the introduction summarizes the results.
  
-% Background (3):
-% No major omissions from the literature review (1)
-% 10+ papers cited (1)
-% 5+ relevant papers discussed in detail, with explanations of how they relate to your project (1)
+% Introduction/overall idea  (7):
+% Clear overall motivation for project  (2)
+% Clear description and motivation for any novel techniques, including baseline results  (2)
+% Clear summary of findings  (3)
  
-% Overall writing (2):
-% Reasonably close fit to ACL style (1)
-% Readable prose (1)
-% Collaboration statement (0, -1 for groups that leave it out) [We reserve the right to redistribute points unevenly between team members in case of very uneven contributions.]
+% Background  (3):
+% No major omissions from the literature review  (2)
+% 10+ papers cited  (1)
+% 5+ relevant papers discussed in detail, with explanations of how they relate to your project  (1)
+ 
+% Results and Analysis  (7):
+% Well designed experiments with no unnecessary differences between any models/methods under comparison  (3)
+% Work fully complete, with no easy-to-answer empirical questions left unanswered  (2)
+% Informative, non-trivial error analysis and results writeup  (2)
+ 
+% Overall writing  (3):
+% Reasonably close fit to ACL style  (1)
+% Readable prose  (2)
+% Collaboration statement  (0, -1 for groups that leave it out) 
+% We reserve the right to redistribute points unevenly between team members in case of very uneven contributions.
+
 
 \newcommand\BibTeX{B{\sc ib}\TeX}
 \usepackage[ruled,vlined]{algorithm2e}
 \title{Continual NLU: Enabling language models to learn downstream tasks in an online fashion}
 
-\author{{Mohith Damarapati*, Govind Mittal*, Chandra Prakash Konkimalla*, Aakriti Gupta}\\
-  {\tt \{md4289, gm2724, cpk290, ag6817\}@nyu.edu}}
+\author{{Mohith Damarapati, Govind Mittal, Chandra Prakash Konkimalla}\\
+  {\tt \{md4289, gm2724, cpk290\}@nyu.edu}}
 \date{}
 \begin{document}
 \maketitle
 \begin{abstract}
-  Qualified general intelligence has the ability of learning new tasks without immediately becoming worse at an older one. With this statement at the core of this paper, we explore various techniques to prevent catastrophic forgetting (CF) in a state-of-the-art language model. The paper explores three neuroscience inspired regularization techniques to mitigate CF, \textit{viz.}, Elastic Weight Consolidation, Memory Aware Synapses and Synaptic Intelligence on pre-trained BERT model. Two evaluation metrics -- backward and forward transfer, are used to evaluate the techniques. The paper aims to reduce the negative backward transfer for previous tasks and boost positive forward transfer for future tasks. As per our knowledge, this is the first work attempting to enable language models to learn downstream tasks in an online fashion and evaluating them based on the metrics mentioned above
+  Qualified general intelligence has the ability of learning new tasks without immediately becoming worse at an older one. With this statement at the core of this paper, we explore various techniques to prevent catastrophic forgetting  (CF) in a state-of-the-art language model. The paper explores two neuroscience inspired regularization techniques to mitigate CF, \textit{viz.}, Elastic Weight Consolidation and Memory Aware Synapses on pre-trained BERT model. Backward transfer is the
+  metric used to evaluate these techniques. The paper aims to reduce negative backward transfer on the previously trained tasks. As per our knowledge, this is the first work attempting to enable language models to learn downstream tasks in an online fashion and evaluating them based on the metric mentioned above.
 \end{abstract}
 
 % \section{credits
@@ -62,19 +79,17 @@
 \section{Introduction}
 \label{sec:intro}
 
-Natural cognitive systems gradually forget previously learned information unlike the CF observed in current connectionist approaches \cite{french1999catastrophic}.  This problem is significant in the domain of natural language understanding (NLU) as well.  
+Natural cognitive systems gradually forget previously learned information unlike the CF observed in current connectionist approaches \cite{french1999catastrophic}.  This problem is significant in the domain of natural language understanding  (NLU) as well.  
 
-Humans are remarkable at using their previously acquired knowledge when learning a new language task.  For instance, children first learn a language by mostly observing and listening to their parents.  They bolster their language skills through curricula by learning more formal language rules like grammar and syntax.  Using their linguistic knowledge, they can comprehend intricate texts and can answer questions based on them.  They can further infer meanings of natural language sentences used in complex contexts.  In all the stages of human learning, we are exceptionally good at retaining important parts of our previous knowledge.  
+Humans are remarkable at using their previously acquired knowledge when learning a new language task.  For instance, children first learn a language by mostly observing and listening to their parents.  They bolster their language skills through curricula by learning more formal language rules like grammar and syntax.  Using their linguistic knowledge, they can comprehend intricate texts and can answer questions based on them.  They can even infer meanings of natural language sentences used in complex contexts.  In all stages of learning, humans are exceptionally good at retaining important parts of their previous knowledge.  
 
-In order to design real-world self-learning systems, two requirements are essential -- adaptability to learn new knowledge and stability while evolving and integrating it. Therefore a the ratio of \textit{how plastic} and \textit{how static} a system is decides how adaptable and how stable it is, respectively. A balance needs to be maintained to alleviate the problem of CF of consolidated knowledge, which gives rise to the \textit{stability-plasticity dilemma}.
+In order to design real-world self-learning systems, two requirements are essential -- adaptability to learn new knowledge and stability while evolving and integrating it. Therefore, a the ratio of \textit{how plastic} and \textit{how static} a system should be decides how adaptable and how stable it is, respectively. A balance needs to be maintained to alleviate the problem of CF of consolidated knowledge, which gives rise to the \textit{stability-plasticity dilemma}.
 
+State-of-the-art deep learning based language models like BERT \cite{DBLP:journals/corr/abs-1810-04805} perform exceptionally well on the NLU tasks.  However, these models struggle to learn new tasks by retaining previously acquired knowledge \cite{DBLP:journals/corr/abs-1901-11373}.  Whenever new data becomes available, the model has to be re-trained again on all the previous data.  Further, it expects our data to be shuffled to perform well.  Re-training is a costly process and shuffling is not possible in case of scenarios where data comes in a continuous stream.
 
+Current literature evaluates language models based on metrics like accuracy and F1 score on a single task for which it is fine-tuned for.  We call this as vanilla fine-tuning.  Vanilla fine-tuning does not measure adaptability of our model to learn new tasks without forgetting the previously acquired knowledge.  In this paper, we propose a continual learning framework to fine-tune our language models with a capability to adapt to learning new tasks. Apart from accuracy and F1 score, our framework also outputs backward transfer \citeauthor{DBLP:journals/corr/Lopez-PazR17} which is a metric to measure the retention capacity.  We further argue that retaining and reusing the linguistic knowledge and avoiding CF is an important characteristic of general linguistic intelligence.  
 
-On the other hand, deep learning based language models drastically forget their previous knowledge while learning new tasks. Current state of the art language models, like BERT \cite{DBLP:journals/corr/abs-1810-04805}, struggle to learn multiple tasks in an online fashion \cite{DBLP:journals/corr/abs-1901-11373}. Despite having a huge capacity, these models cannot learn multiple tasks effectively due to CF.  
-
-In the current literature, after pre-training a language model, it is fine-tuned on each downstream task separately. While evaluating a language model, performance metrics like accuracy and F1 score are reported separately for each downstream task. In this paper, we argue against this kind of evaluation of language models. Language models need to be evaluated on multiple tasks trained in a continual way and on metrics measuring knowledge retention capacity apart from accuracy and F1.  We further put forward an argument that retaining and reusing the linguistic knowledge and avoiding CF is an important characteristic of general linguistic intelligence.  
-
-Our work in this paper mostly focuses on evaluating BERT-base trained on multiple tasks based on two metrics namely (i) backward transfer and (ii) forward transfer proposed in \citeauthor{DBLP:journals/corr/Lopez-PazR17}.  We compare vanilla fine-tuning of BERT-base with continual fine-turning based on neuroscience inspired techniques like Elastic Weight Consolidation (EWC, \citealt{DBLP:journals/corr/KirkpatrickPRVD16}), Memory Aware Synapses(MAS, \citealt{aljundi2018memory}) and Synaptic Intelligence (SI, \cite{Cortes2017AdaNetAS}).  As per our knowledge, this is the first work attempting to enable language models to learn downstream tasks in an online fashion and evaluating them based on the metrics mentioned above.
+Our work in this paper mainly focuses on comparing vanilla fine-tuning with continual fine-tuning on BERT-base. We incorporate neuroscience inspired techniques like Elastic Weight Consolidation  (EWC, \citealt{DBLP:journals/corr/KirkpatrickPRVD16}) and Memory Aware Synapses  (MAS, \citealt{aljundi2018memory}) into our framework to mitigate CF.
 
 \section{Related Work}
 \label{sec:related}
@@ -82,71 +97,65 @@ Our work in this paper mostly focuses on evaluating BERT-base trained on multipl
 There has been multiple ways proposed to mitigate CF in connectionist networks. The paper segregates and reviews some of them into the following categories.
 
 \subsection{Memory based methods}
-Memory methods involve \textit{rehearsing} on old samples along with seeing new distribution data interleaved \cite{Robins1995CatastrophicFR, Gepperth2016ABI}. These methods although cure the forgetting better than other methods, but this involves storing past events explicitly, which makes it difficult to scale as the neural networks becomes very large. 
+Memory methods involve \textit{rehearsing} on old samples along with seeing new distribution data alternately \cite{Robins1995CatastrophicFR, Gepperth2016ABI}. These methods work best in preventing CF, but the biggest drawback is that they involve storing past events explicitly, which makes it difficult to scale up with time as the neural networks becomes very large and neural resources are limited.
 % which is the case for most state-of-the-art architectures 
-% (e.g. BERT $\sim$ 340M parameters \cite{DBLP:journals/corr/abs-1810-04805}, FixEfficientNet $\sim$ 480M parameters \cite{touvron2019fixing}, etc). 
-Also, this approach does not consider the fact that a network needs to learn unknown number of future tasks, which makes choosing \textit{defining set of examples} per task for storing in a fixed resourced system complicated.
+%  (e.g. BERT $\sim$ 340M parameters \cite{DBLP:journals/corr/abs-1810-04805}, FixEfficientNet $\sim$ 480M parameters \cite{touvron2019fixing}, etc). 
+Also, this approach does not consider the fact that a network needs to learn unknown number of future tasks, which makes choosing the \textit{defining set of examples} per task for storing in a fixed resourced system complicated.
 
 \subsection{Regularization based methods}
-These methods cure CF by enforcing a cost-based constraint during the update step of the network weights. These approaches aim to change a subset or all of the current parameters to an optimal value that works well for both the previous tasks and the current new task.
+These methods alleviates CF by enforcing a cost-based constraint during the update step of the network weights. These approaches aim to change a subset or all of the current parameters to an optimal value that works well for both the previous tasks and the current new task.
 
-\citet{Li2018LearningWF} proposed \textit{Learning without Forgetting (LwF)} for convolutional neural networks. This approach optimizes the new task parameters, while additionally optimizing the predictions made by the shared parameters, does not deviate much from previous predictions. The loss function while optimizing for each new parameter, minimizes the difference between new output and old output predictions as though learning the old task again. 
+% \citet{Li2018LearningWF} proposed \textit{Learning without Forgetting  (LwF)} for convolutional neural networks. This approach optimizes the new task parameters, while additionally optimizing the predictions made by the shared parameters, does not deviate much from previous predictions. The loss function while optimizing for each new parameter, minimizes the difference between new output and old output predictions as though learning the old task again. 
+
 % % The following equation illustrates the optimization step used in LwF, 
 
 % \begin{equation}
 % \begin{split}
-% \theta^*_s,\theta^*_o,\theta^*_n \leftarrow \text{argmin}_{\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n} [ \lambda_o \mathcal{L}_{old}(Y_o,\hat{Y}_o) \\ +
-% \mathcal{L}_{new}(Y_n,\hat{Y}_n) + \mathcal{R}(\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n)],
+% \theta^*_s,\theta^*_o,\theta^*_n \leftarrow \text{argmin}_{\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n} [ \lambda_o \mathcal{L}_{old} (Y_o,\hat{Y}_o) \\ +
+% \mathcal{L}_{new} (Y_n,\hat{Y}_n) + \mathcal{R} (\hat{\theta}_s,\hat{\theta}_o,\hat{\theta}_n)],
 % \end{split}
 % \end{equation}
 
-% where $\mathcal{L}_{old}(Y_o,\hat{Y}_o)$ and $\mathcal{L}_{new}(Y_n,\hat{Y}_n)$ represent the difference between the predicted values $\hat{Y}$ and the ground truth values $Y$ of the old and new tasks, respectively using parameters $\hat{\theta}_s,\hat{\theta}_o $ and  $\hat{\theta}_n$. $\lambda_o$ is used to balance previous and current tasks, and $\mathcal{R}$ is a regularization term to prevent overfitting. 
-After the optimization, a new smaller model is trained using knowledge distillation which works optimally as a multi-task model for all learned tasks. The requirement of storing data from previous tasks is its biggest disadvantage.
+% where $\mathcal{L}_{old} (Y_o,\hat{Y}_o)$ and $\mathcal{L}_{new} (Y_n,\hat{Y}_n)$ represent the difference between the predicted values $\hat{Y}$ and the ground truth values $Y$ of the old and new tasks, respectively using parameters $\hat{\theta}_s,\hat{\theta}_o $ and  $\hat{\theta}_n$. $\lambda_o$ is used to balance previous and current tasks, and $\mathcal{R}$ is a regularization term to prevent overfitting. 
 
-\citet{DBLP:journals/corr/KirkpatrickPRVD16} proposed  \textit{Elastic Weight Consolidation (EWC)} constrains each parameter based on how important it is in the original task, which results in model that is flexible for adapting to new tasks while maintaining the performance on previous task. Per-parameter significance is calculated using the diagonal of the Fischer information matrix, which is an approximation of the second derivative of loss with respect to each parameter. This approximation is linear to compute in the number of parameters and training examples.
+% After the optimization, a new smaller model is trained using knowledge distillation which works optimally as a multi-task model for all learned tasks. The requirement of storing data from previous tasks is its biggest disadvantage.
 
-The final parameters are calculated as follows:
+\citet{DBLP:journals/corr/KirkpatrickPRVD16} proposed \textbf{Elastic Weight Consolidation (EWC)} which constrains each parameter based on how important it is to the previous task, which results in model that is flexible for adapting to new tasks while maintaining the performance on previous task. Per-parameter significance is calculated using the diagonal of the Fischer information matrix, which is an approximation of the second derivative of loss with respect to each parameter. This approximation is linear to compute in the number of parameters and training examples. The final parameters are calculated as follows:
+\begin{multline}
+\theta_N^* \leftarrow \text{argmin}_{\theta} L_N (\theta) + \\ \lambda \sum_i \dfrac{1}{2}  (\dfrac{dL_{Pi} (\theta_{Pi})}{d\theta_{Pi}})^2 (\theta - \theta_{Pi})^2 
+\label{eq:ewc}
+\end{multline}
+where $\theta_N^*$ are the optimal parameters after training on new task. $L_N (\theta)$ is the loss metric for new task, $dL_{Pi} (\theta_{Pi})$ is the loss metric for previous ($i^{th}$) task, $\theta_{Pi} $ are the optimal parameters until $i^{th}$ task. $\lambda$ is a hyper-parameter for measuring the importance of remembering old task parameters.
 
+ \citet{aljundi2018memory} proposed \textbf{Memory Aware Synapses} inspired by Hebbian learning in natural systems. The core idea is to learn which parts of the model parameters are important relative to others, using unlabelled data itself. They calculate importance weights $\Omega_{ij}$ for all parameters $\theta_{ij}$, where $i$ and $j$ are indices of pairs of neurons $n_i$ and $n_j$ residing in two consecutive layers, respectively. The importance weight represent the \textit{sensitivity} of the function output of a learned function, $F:X_n \longrightarrow Y_m$, to changes in the corresponding parameter. Therefore,
+ \vspace{-0.3cm}
 \begin{equation}
-\theta_N^* \leftarrow \text{argmin}_{\theta} L_N(\theta) + \sum_i \dfrac{\lambda}{2} (\dfrac{dL_{Pi}(\theta_{Pi})}{d\theta_{Pi}})^2(\theta - \theta_{Pi})^2 
-\end{equation}
-
-where $\theta_N^*$ are the optimal parameters after training on new task. $L_N(\theta)$ is the loss metric for new task, $dL_{Pi}(\theta_{Pi})$ is the loss metric for previous(i-th) task, $\theta_{Pi} $ are the optimal parameters until i-th task. $\lambda$ is the importance parameter for old tasks.
-
-
- \citet{aljundi2018memory} proposed \textit{Memory Aware Synapses} inspired by Hebbian learning in natural systems. The core idea is to learn which parts of the model parameters are important relative to others, using unlabelled data itself. They calculate importance weights $\Omega_{ij}$ for all parameters $\theta_{ij}$, where $i$ and $j$ are indices of pairs of neurons $n_i$ and $n_j$ residing in two consecutive layers, respectively. The importance weight represent the \textit{sensitivity} of the function output of a learned function, $F:X_n \longrightarrow Y_n$, to changes in the corresponding parameter. Therefore,
-
-\begin{equation}
-\Omega_{ij} =\frac{1}{N}\sum_{k=1}^N  \mid\mid g_{ij}(x_k) \mid\mid
+\Omega_{ij} =\frac{1}{N}\sum_{k=1}^N  \mid\mid g_{ij} (x_k) \mid\mid
+\label{eq:omega_mas}
 \end{equation}
 where, $N$ is the number of data points at a given stage and
+ \vspace{-0.3cm}
 \begin{equation}
-g_{ij}(x_k)=\frac{\partial (F(x_k; \theta))}{\partial \theta_{ij}}
+g_{ij} (x_k)=\frac{\partial  (F (x_k; \theta))}{\partial \theta_{ij}}
+\label{eq:grad_mas}
 \end{equation}
-
-for a given data point $x_k$. Therefore, whichever parameters have lower importance can be changed without degrading the accuracy on previous tasks, while decreasing the loss for subsequent tasks. Thus, if we wish to learn a new task, the total loss function $L(\theta)$ becomes,
-
+for a given data point $x_k$. Therefore, whichever parameters have lower importance can be changed without degrading the accuracy on previous tasks, while decreasing the loss for subsequent tasks. Thus, if we wish to learn a new task, the total loss function $L (\theta)$ becomes,
 \begin{equation}
-L(\theta)=L_n(\theta)+{\lambda} \sum_{i,j} \Omega_{ij}(\theta_{ij}-\theta^*_{ij})^2
+    L (\theta)=L_n (\theta)+{\lambda} \sum_{i,j} \Omega_{ij} (\theta_{ij}-\theta^*_{ij})^2
+    \label{eq:mas_loss}
 \end{equation}
-
-where, $L_n(\theta)$ is the new task loss, $\theta^*_{ij}$ are the old parameters and $\lambda$ is a regularizer hyperparamter.
-
-
- \citet{DBLP:journals/corr/ZenkePG17} \textit{Synaptic Intelligence} loss is similar to MAS: 
+where, $L_n (\theta)$ is the new task loss, $\theta^*_{ij}$ are the old parameters and $\lambda$ is a regularizer hyperparameter.
+\citet{DBLP:journals/corr/ZenkePG17} \textbf{Synaptic Intelligence} loss is similar to MAS: 
  \begin{align*}
-     L(\theta) &=L_n(\theta)+{\lambda} \sum_{k} \Omega_k^{\mu} (\theta - \theta_k)^2,\\ 
-     where:
-     \Omega_k^{\mu} &= \sum_{v<\mu} \dfrac{\omega_k^v}{(\Delta_k^v)^2+\epsilon} \\
-     \omega_k^v &= \int_{t^{\mu-1}}^{t^{\mu}} g_k(t)\theta^{'}_k(t)
+     L (\theta) &=L_n (\theta)+{\lambda} \sum_{k} \Omega_k^{\mu}  (\theta - \theta_k)^2,\\ 
+    \Omega_k^{\mu} &= \sum_{v<\mu} \dfrac{\omega_k^v}{ (\Delta_k^v)^2+\epsilon} \\
+     \omega_k^v &= \int_{t^{\mu-1}}^{t^{\mu}} g_k (t)\theta^{'}_k (t)
  \end{align*}
-Here k signifies task number, $g_k(t)$ is the gradient of loss w.r.t parameter k, $\theta^{'}_k(t)$ is the parameter change at time t
-
-In case of SI the importance of parameter is an accumulation of product of gradient and parameter change. It depends on two quantities: 1) $ \omega_k^v $ is a drop in loss over the trajectory of training. 2) How far the loss has changed $\Delta_k^v = \theta_k(t^v) - \theta_k(t^{v-1})$.
+Here k signifies task number, $g_k (t)$ is the gradient of loss w.r.t parameter k, $\theta^{'}_k (t)$ is the parameter change at time $t$. In this case, the importance of parameter is an accumulation of product of gradient and parameter change. It depends on two quantities: 1) $ \omega_k^v $ is a drop in loss over the trajectory of training. 2) How far the loss has changed $\Delta_k^v = \theta_k (t^v) - \theta_k (t^{v-1})$.
 
 
 \subsection{Dynamic Architectures} 
-In this approach, a network is augmented as new tasks and more neural resources are needed \cite{Rusu2016ProgressiveNN, Cortes2017AdaNetAS}. Old network parameters are fully preserved to prevent CF and additional neurons are added and trained separately. Although this approach works well for reinforcement learning tasks but leads to higher complexity of architecture as the number of learned tasks increases.
+Dynamic approaches the problem by augmenting a network as new tasks are encountered and more neural resources are needed \cite{Rusu2016ProgressiveNN, Cortes2017AdaNetAS}. Old network parameters are fully preserved to prevent CF and additional neurons are added and trained separately. Although this approach works well for reinforcement learning tasks but architecture complexity increases with number of learned tasks.
 % proposed a model augmentation technique named \textit{Progressive Networks}, in which the old network parameters are preserved to prevent CF and when a new task needs to be learned, a new network is trained and coalesced into the old network by forming lateral connections. This approach although works well on reinforcement learning tasks, but leads 
 
 % \citet{Cortes2017AdaNetAS} proposed a technique similar to neural architectural search named \textit{AdaNet}, in which they optimize both structure and weights of networks starting with a general structure. The models adapts itself as newer tasks are learned. The approach balances the model complexity by merging similar features to obtain compact feature representations and scaling up when more neural resources are needed.
@@ -156,16 +165,17 @@ In this approach, a network is augmented as new tasks and more neural resources 
 
 \subsection{Evaluation Metrics}
 \label{sec:metric}
-This paper uses two metrics proposed by \citeauthor{DBLP:journals/corr/Lopez-PazR17}. They are:
+Our continual learning framework is evaluated by the following two metrics. They are:
 \begin{enumerate}
-    \item \textit{Backward transfer (BWT)} is the influence of learning a new task on the previous tasks. 
-    \item \textit{Forward transfer (FWT)} is the influence of learning a new task on future tasks.
+    \item \textit{Backward transfer  (BT)} is the influence of learning a new task on the previous tasks. 
+    % \item \textit{Forward transfer  (FWT)} is the influence of learning a new task on future tasks.
     \item \textit{Accuracy} is the test classification accuracy on the current new task.
 \end{enumerate}
 
-The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, where $R_{i, j}$ is the test classification accuracy of the model on task $t_j$ after observing the last data point from task $t_i$ and $Tr_{i, j}$ is the backward transfer when $i > j$ and the forward transfer when $i < j$, respectively.
+We define $R$ as the accuracy matrix and $Tr$ as the transfer matrix, where $R_{i, j}$ is the test classification accuracy of the model on task $t_j$ after the previous task $t_i$ and $Tr_{i, j}$ is the backward transfer when $i > j$, respectively.
 
-\subsection{Continual Framework}
+\subsection{Continual Framework
+\footnote{Code available at - \url{https://github.com/mittalgovind/continual-learning-nlu}.}}
 
 \begin{algorithm}
     $T \leftarrow \mbox{Tasks}$ \\
@@ -174,11 +184,11 @@ The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, wh
     $R \leftarrow 0_{N \times N}$ \Comment{;Test Accuracy Matrix}\\
     $Tr \leftarrow 0_{N \times N}$ \Comment{;Transfer Matrix}\\
   \For{$i = 1:N$}{
-    $D_i \leftarrow data(T_{i, train})$ \\
-    $\theta_{B_i}, \theta_{T_i}$ \leftarrow $\mbox{argmin}_{\theta_B, \theta_T} L(D_i,  \theta_{B_{i-1}}, \theta_{T_i})$\\
-    \For{$j = 1:T$}{
-        $D_{test} \leftarrow data(T_{j, test})$ \\
-        $R_{i,j} \leftarrow acc(\theta_{Bi}, \theta_{Tj}, D_{test})$ \\
+    $D_i \leftarrow data (T_{i, train})$ \\
+    $\theta_{B_i}, \theta'_{T_i}$ \leftarrow $\mbox{argmin}_{\theta_B, \theta_T} L (D_i,  \theta_{B_{i-1}}, \theta_{T_i})$\\
+    \For{$j = 1:N$}{
+        $D_{test} \leftarrow data (T_{j, test})$ \\
+        $R_{i,j} \leftarrow acc (\theta_{Bi}, \theta'_{T_j}, D_{test})$ \\
         $Tr_{i, j} \leftarrow R_{i, j} - R_{i, i}$ \\
     }
     }
@@ -187,38 +197,186 @@ The paper defines $R$ as the accuracy matrix and $Tr$ as the transfer matrix, wh
     \label{algo:1}
 \end{algorithm}
 
-The paper proposes a continual framework for learning multiple downstream tasks on BERT and illustrates in Algorithm \ref{algo:1}. Let $T$ be the tasks to be learned, $N$ be the number of tasks to be learned, $\theta_{B_0}$ be BERT pre-trained parameters obtained from huggingface\footnote{https://github.com/huggingface/transformers}, $R$ is the accuracy matrix and $Tr$ is the transfer matrix, both initialized to zero.
-
-In case of vanilla fine-tuning, after each task-specific head are initialized randomly and BERT-specific parameters (All BERT parameters except the task specific ones) are re-initialized to $\theta_{B_0}$.  But, in this framework, BERT-specific parameters  are \textit{not re-initialized}, when training new tasks.   
-
-The paper fine-tunes BERT on $N$ downstream tasks $T_i, \forall i \in [1, N]$.  Before training the first task, BERT-specific parameters are initialized to $\theta_{B_0}$. After starting the training loop, the task-specific training data is loaded. Since, we are not updating BERT-specific parameters, after any training task $T_i$, let it be $\theta_{B_i}$.  When training a new task $T_{i+1}$, a randomly initialized task-specific head with parameters $\theta_{T_{i+1}}$ is attached to previously trained $\theta_B_{i}$.
-
-When learning a new task, $T_{i+1}$, techniques like EWC, MAS and SI are employed to consolidate the previous trained parameters $\theta_{B_i}$. Consolidating previous parameters helps us to retain knowledge obtained from previously trained tasks.
-
-While evaluating the model, test accuracy on task $T_i$ after re-installing its task-specific head is reported. After training a task $T_i$, backward transfer for all previous tasks ($T_j, \forall j<i$) and forward transfer for all future tasks ($T_j, \forall j>i$) is evaluated. Backward and forward transfers are obtained from $R$ and stored in an $N \times N$ transfer matrix $Tr$.
+The paper proposes a continual framework for learning multiple downstream tasks on BERT and illustrates in Algorithm \ref{algo:1}. Let $T$ be the tasks to be learned, $N$ be the number of tasks, $\theta_{B_0}$ be BERT pre-trained parameters obtained from huggingface\footnote{https://github.com/huggingface/transformers}, $R$ be the accuracy matrix and $Tr$ be the transfer matrix, both initialized to zero.
 
 
+Continual fine-tuning procedure involves common BERT parameters and multiple heads. First, $T_{1}$ is trained with BERT parameters($\theta_{B_0}$) and a randomly initialized task-specific head ($\theta_{T_1}$) with corresponding loss ($L (D_1,  \theta_{B_{0}}, \theta_{T_1})$). Next task $T_2$ is trained with previous BERT parameters($\theta_{B_1}$) and another randomly initialized task-specific head($\theta_{T_2}$) with loss($L (D_2,  \theta_{B_{1}}, \theta_{T_2})$). This procedure is repeated for all the remaining tasks. Accuracy($R_{i,j}$) is calculated by using $\theta_{B_i}$ and head $\theta'_{T_i}$ with test data ($data (T_{j, test})$), where $\theta'_{T_i}$ are the final task-specific head parameters.
 
-\subsection{Data}
+
+% We fine-tune BERT on $N$ downstream tasks $T_i, \forall i \in [1, N]$.  During the training loop, the task-specific training data is loaded. Let the BERT-specific parameters be $\theta_{B_i}$ after any training task $T_i$. When training the next task $T_{i+1}$, a randomly initialized task-specific head with parameters $\theta_{T_{i+1}}$ is attached to previously trained $\theta_{B_{i}}$.
+
+
+In case of vanilla fine-tuning, all task-specific heads are initialized randomly and BERT-specific parameters  (All BERT parameters except the task specific ones) are re-initialized to $\theta_{B_0}$.  But, in this framework, BERT-specific parameters  are \textit{not re-initialized}, when training new tasks.   
+
+
+In EWC, we compute mean and Fisher consolidate after training each task.  Fisher consolidate is computed as a running average instead of accumulating all the gradients by approximating (ref. eq.~\ref{eq:ewc}) as given in \citealt{Rao1992}.  This approximation minimizes the memory complexity of our gradient updates which is important for a feasible implementation of a model, like BERT consisting of $\sim$100M parameters.
+
+In MAS, we use a modified Adam optimizer to access the gradients of each batch (ref. eq.~\ref{eq:grad_mas}) and update the corresponding importance weights (ref. eq.~\ref{eq:omega_mas}) as running average of the absolute values of per-parameter gradients for a given batch. The gradient of each parameter for the current task is added with $2{\lambda} \Omega (\theta-\theta^*)$ (ref. eq.~\ref{eq:mas_loss}).
+
+After computing importance weights of each parameter for the current task and finishing training, we consolidate the previously trained weights $\theta_{B_i}$. These consolidated previous parameters helps us to retain knowledge obtained from previously learned tasks and are used while learning a new one.
+
+While evaluating the model, test accuracy on task $T_i$ is reported after re-installing its task-specific head. After training a task $T_i$, backward transfer for all previous tasks  ($T_j, \forall j<i$) is evaluated. Backward transfers are obtained from $R$ and stored in the lower triangle of an $N \times N$ transfer matrix $Tr$.  These consolidated previous parameters helps us to retain knowledge obtained from previously learned tasks and are used while learning a new one.
+
+
+\subsection{Data and Base Model}
 \label{sec:data}
 
-In this paper we work in three phases using various GLUE tasks \cite{wang2019glue}, as follows:
-\begin{itemize}
-  \item \textbf{First Phase (Two low data tasks):} Microsoft Research Paraphrase Corpus (MRPC) and Recognizing Textual Entailment (RTE).
-  \item \textbf{Second Phase (Two high data tasks):} Quora Question Pairs (QQP) and Multi Natural Language Inference (MNLI), and vice-versa.
-  \item \textbf{Final Phase (All tasks):} More than two tasks -- MRPC $\rightarrow$ RTE $\rightarrow$ MNLI-mm.
-\end{itemize}
+All our experiments are performed on GLUE tasks \cite{wang2019glue}.  We selected two low resource  (MRPC and RTE) and two high resource  (QNLI and SST-2) tasks.  Results are reported on multiple combinations of two and three tasks.  
 
-\section{Results}
+All our experiments are performed on BERT 
+\footnote{We argue that CF is a problem not specific to language models but to neural networks as a whole. In this work we wish to prove that using regularization techniques can alleviate CF. Therefore, it justifies using BERT, as the negative backward transfer might remain proportional and serves as a proof-of-concept.}, which can also be extended to more recent language models like RoBERTa \cite{liu2019roberta}, ALBERT \cite{lan2019albert}, etc.
+
+\section{Results and Analysis}
 \label{sec:results}
+\begin{table}[h!]
+    \centering
+    \caption{Low Resource Tasks. Representation:  0.87 (-0.48)$\rightarrow$0.64 meant the accuracy was 0.87 after the model is trained on $1^{st}$ task. It reduced by 0.48 after training on $2^{nd}$ task and the $2^{nd}$ task accuracy is 0.64. }
+    \resizebox{0.9\columnwidth}{!}{
+    \begin{tabular}{|c|c|c|}
+        \hline
+         \textbf{Task} & \textbf{MRPC$\rightarrow$RTE} & \textbf{RTE$\rightarrow$MRPC} \\
+        \hline \hline
+        \textbf{Base} & 0.87 (-0.48)$\rightarrow$0.64 & 0.65 (-0.14)$\rightarrow$0.83\\
+        \hline
+        \textbf{EWC} & 0.86 (-0.00)$\rightarrow$0.65 & 0.65 (-0.09)$\rightarrow$0.86 \\
+        \hline
+        \textbf{MAS} &  0.87 (-0.09)$\rightarrow$0.71 & 0.71 (-0.16)$\rightarrow$0.87 \\
+        \hline
+    \end{tabular}
+    }
+    \label{tab:low_resource_table}
+\end{table}
 
-We obtained results for baseline and EWC, for the \textbf{first phase}. Our baseline results strengthen our hypothesis that the models suffer from very high negative backward transfer. Forward transfer is still low and methods to improve it will be discussed in the future work.  Table 1 shows the results for both vanilla fine-turning (baseline) and continual fine-turning with EWC.  The model trained with EWC has relatively lower negative backward transfer compared to baseline.  We are expecting to further mitigate negative backward transfer with MAS and SI.  
+
+\vspace{-0.3cm}
+
+
+\begin{table}[h!]
+    \centering
+     \caption{High Resource Tasks: SST-2 and QNLI}
+    \resizebox{0.9\columnwidth}{!}{
+    \begin{tabular}{|c|c|c|}
+        \hline
+         \textbf{Task} & \textbf{SST-2$\rightarrow$QNLI} & \textbf{QNLI$\rightarrow$SST-2} \\
+        \hline \hline
+        \textbf{Base} & 0.91 (-0.39)$\rightarrow$0.77 & 0.86 (-0.38)$\rightarrow$0.90\\
+        \hline
+        \textbf{EWC} & 0.91 (-0.08)$\rightarrow$0.79 & 0.87 (-0.01)$\rightarrow$0.88 \\
+        \hline
+        \textbf{MAS} &  0.90 (-0.41)$\rightarrow$0.50 & 0.87 (-0.30)$\rightarrow$0.90 \\
+        \hline
+    \end{tabular}
+    }
+   
+    \label{tab:high_resource_table}
+\end{table}
+
+
+\vspace{-0.3cm}
+
+
+\begin{table}[h!]
+    \centering
+    \caption{Three Tasks: MRPC$\rightarrow$RTE$\rightarrow$SST-2.  *Future transfer (FT) is not considered.}
+    \begin{center}
+    \resizebox{0.9\columnwidth}{!}{
+    \begin{tabular}{| c | c | c | c | } 
+    \hline
+    \textbf{Task} & \textbf{MRPC} & \textbf{RTE} & \textbf{SST-2} &
+    \hline\hline
+    
+    
+     & 0.87 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{Baseline} & 0.46 (-0.41) & 0.71 & *FT   \\ 
+    \cline{2-4}
+     & 0.43 (-0.44) & 0.5 (-0.21) & 0.91   \\ 
+    \hline\hline
+    
+    
+    & 0.88 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{EWC} & 0.83 (-0.05) & 0.68 & *FT   \\ 
+    \cline{2-4}
+     & 0.85 (-0.03) & 0.6 (-0.08) & 0.91   \\ 
+    \hline\hline
+    
+    
+    & 0.87 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{MAS} & 0.64 (-0.33) & 0.65 & *FT   \\ 
+    \cline{2-4}
+     & 0.67 (-0.30) & 0.52 (-0.23) & 0.92   \\ 
+    \hline
+    
+    
+    \end{tabular}
+    }
+    \end{center}
+    
+    \label{tab:three_tasks}
+\end{table}
+
+\begin{table}[h!]
+    \centering
+    \caption{Three Tasks: MRPC$\rightarrow$SST-2$\rightarrow$RTE.}
+    % \caption{Three Tasks: MRPC$\rightarrow$SST-2$\rightarrow$RTE} \footnote{*Future transfer (FT) is not considered.}. \label{tab:three_tasks_2}
+    \begin{center}
+    \resizebox{0.9\columnwidth}{!}{
+    \begin{tabular}{| c | c | c | c | } 
+    \hline
+    \textbf{Task} & \textbf{MRPC} & \textbf{SST-2} & \textbf{RTE} &
+    \hline\hline
+    
+    
+     & 0.87 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{Baseline} & 0.41 (-0.46) & 0.91 & *FT   \\ 
+    \cline{2-4}
+     & 0.64 (-0.23) & 0.74 (-0.17) & 0.52   \\ 
+    \hline\hline
+    
+    
+    & 0.85 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{EWC} & 0.82 (-0.03) & 0.91 & *FT   \\ 
+    \cline{2-4}
+     & 0.85 (-0.00) & 0.9 (-0.01) & 0.63   \\ 
+    \hline\hline
+    
+    
+    & 0.86 & *FT & *FT \\ 
+    \cline{2-4}
+    \textbf{MAS} & 0.4 (-0.46) & 0.91 & *FT   \\ 
+    \cline{2-4}
+     & 0.75 (-0.11) & 0.84 (-0.07) & 0.61   \\ 
+    \hline
+    \end{tabular}
+    }
+    \end{center}
+    \vspace{-0.5cm}
+\end{table}
+
+
+% \vspace{-0.6cm}
+
+
+% We obtained results for baseline and EWC, for the \textbf{first phase}. Our baseline results strengthen our hypothesis that the models suffer from very high negative backward transfer. Forward transfer is still low and methods to improve it will be discussed in the future work.  Table 1 shows the results for both vanilla fine-turning  (baseline) and continual fine-turning with EWC.  The model trained with EWC has relatively lower negative backward transfer compared to baseline.  We are expecting to further mitigate negative backward transfer with MAS and SI.  
+We performed hyperparameter optimization on all results for EWC by running for each task with different lambdas -  \{5e5, 1e6, 1.5e5, 2e6\} and for MAS the lambdas are  \{150, 200, 250\}. The reported results for each task are the best among their lambda and seed settings.
+
+
+% \vspace{-0.8cm}
+
+
+The results for the baseline (BERT-base), EWC and MAS for the low resource strengthened our hypothesis that the models suffer from very high negative backward transfer. In Table~\ref{tab:low_resource_table}, EWC achieves zero backward transfer for the MRPC$\rightarrow$RTE experiment. MAS has higher accuracy for RTE but has a lower negative backward transfer compared to EWC. In case of data-intensive tasks (QNLI/SST-2) we can see that the baseline backward transfer is low but the EWC performs significantly better. MAS does not perform well on data-intensive tasks  across all tested seeds and lambdas. 
+
+In case of three consecutive tasks (MRPC$\rightarrow$RTE$\rightarrow$SST-2), the baseline reduces to random choice accuracy for MRPC and RTE tasks. Therefore, the baseline model has catastrophically forgotten the previous tasks and making a random choice. For MRPC$\rightarrow$SST-2$\rightarrow$RTE the baseline has better accuracy. In both of the three task cases, EWC keeps the negative backward transfer in check.
 
 % Results for second phase final phase will also be shown in the future work. MAS and SI are work in progress.
 
 % \subsection{First Phase}
 
-% Baseline and EWC results are done for first phase. Accuracy and transfer for the first phase configuration (MRPC - RTE) is shown below. Results are reported after 2 epochs.
+% Baseline and EWC results are done for first phase. Accuracy and transfer for the first phase configuration  (MRPC - RTE) is shown below. Results are reported after 2 epochs.
 
 % \textbf{Baseline Matrix:}
 
@@ -227,9 +385,9 @@ We obtained results for baseline and EWC, for the \textbf{first phase}. Our base
 %  \hline
 %  Task & MRPC & RTE  \\ [0.5ex] 
 %  \hline\hline
-%  MRPC & 0.86(CT) & 0.52(\textbf{FT} -0.12) \\ 
+%  MRPC & 0.86 (CT) & 0.52 (\textbf{FT} -0.12) \\ 
 %  \hline
-%  RTE & 0.65(\textbf{BT} -0.21) & 0.64(CT) \\ [1ex] 
+%  RTE & 0.65 (\textbf{BT} -0.21) & 0.64 (CT) \\ [1ex] 
 %  \hline
 % \end{tabular}
 % \end{center}
@@ -241,39 +399,45 @@ We obtained results for baseline and EWC, for the \textbf{first phase}. Our base
 % \end{center}
 
 
-\begin{table}[h!]
-\centering
- \begin{tabular}{|c|c|c|} 
- \hline
- \textbf{Task} & \textbf{MRPC} & \textbf{RTE}  \\
- \hline\hline
- & \textit{Baseline} & \\
- \hline
- \textbf{MRPC} & 0.86(CT) & 0.52(FT -0.12) \\ 
- \hline
- \textbf{RTE} & 0.65(BT -0.21) & 0.64(CT) \\ % [1ex] 
- \hline
- & \textit{EWC} & \\ 
- \hline\hline
- \textbf{MRPC} & 0.87(CT) & 0.52(FT -0.12) \\ 
- \hline
- \textbf{RTE} & 0.75(BT -0.12) & 0.64(CT) \\ %[1ex] 
- \hline
-% \caption{Table A}
-\end{tabular}
-
+% \begin{table}[h!]
+% \centering
 %  \begin{tabular}{|c|c|c|} 
 %  \hline
-
+%  \textbf{Task} & \textbf{MRPC} & \textbf{RTE}  \\
+%  \hline\hline
+%  & \textit{Baseline} & \\
+%  \hline
+%  \textbf{MRPC} & 0.86 (CT) & 0.52 (FT -0.12) \\ 
+%  \hline
+%  \textbf{RTE} & 0.65 (BT -0.21) & 0.64 (CT) \\ % [1ex] 
+%  \hline
+%  & \textit{EWC} & \\ 
+%  \hline\hline
+%  \textbf{MRPC} & 0.87 (CT) & 0.52 (FT -0.12) \\ 
+%  \hline
+%  \textbf{RTE} & 0.75 (BT -0.12) & 0.64 (CT) \\ %[1ex] 
+%  \hline
 % % \caption{Table A}
 % \end{tabular}
-% % \end{center}
-\caption{\label{base-table} Results for baseline and EWC; \textbf{CT:} Current Task, \textbf{BT:} Backward Transfer, \textbf{FT:} Forward Transfer. 
- }
-\end{table}
-#TODO Discuss which layers are not that important and important for all the tasks. which task depends heavily on which layers?
-#TODO hyperparameter optimization
-# how many tasks we can learn hitting the baseline again?
+
+% %  \begin{tabular}{|c|c|c|} 
+% %  \hline
+
+% % % \caption{Table A}
+% % \end{tabular}
+% % % \end{center}
+% \caption{\label{base-table} Results for baseline and EWC; \textbf{CT:} Current Task, \textbf{BT:} Backward Transfer, \textbf{FT:} Forward Transfer. 
+%  }
+% \end{table}
+
+\section{Conclusion}
+
+We present a proof-of-concept that neural networks, like BERT, suffer from catastrophic forgetting. In order to amend CF, current models expect shuffled training data and re-training procedures for all the previous tasks while learning a new task.  Re-training is very costly while shuffling is not possible in the cases when data comes continuously. Further, models suffering from it cannot be safely deployed in real-time systems to learn new tasks without the intervention of a deep learning practitioner.  We proposed a continual learning framework which could replace vanilla fine-tuning to enable language models to learn new tasks in an online fashion.  While EWC greatly mitigated CF in all cases, but MAS fails to achieve the same benchmark, specially for high resource tasks. 
+
+\section{Future Work}
+Backward transfer was the metric we used to evaluate our models, but in order to achieve general linguistic intelligence high future transfer is also expected. The solution we proposed can be combined by using few-shot learning techniques like Matching Networks, Model Agnostic Machine Learning (MAML), Prototypical Networks to build more robust language models.
+
+We also worked (and implemented) on Synaptic Intelligence (SI, \citealt{DBLP:journals/corr/ZenkePG17}) but it suffers from gradient explosion problem and therefore has been pushed to future work.
 
 \section*{Availability}
 The code and \LaTeX{} source files are available at \url{https://github.com/mittalgovind/continual-learning-nlu}.
@@ -284,15 +448,14 @@ The code and \LaTeX{} source files are available at \url{https://github.com/mitt
 \section*{Collaboration Statement}
 The contributions of the authors, in the same order, are as follows:
 
-\textit{Mohith Damarapati*:} Implemented EWC (Elastic Weight Consolidation) from scratch.  Designed a framework to evaluate models in a continual way (i.e. print both backward and forward transfers after training each task).  Fixed some crucial bugs that hindered our project progress. 
+\textit{Mohith Damarapati:} Implemented EWC  (Elastic Weight Consolidation) from scratch.  Designed a framework to evaluate models in a continual way.  Fixed some crucial bugs that hindered our project progress. Ran all the experiments for Baseline.
 
-\textit{Govind Mittal*:} Implemented Memory Aware Synapses (MAS) for BERT from scratch. Wrote the complete related work (Sec. \ref{sec:related} and part of introduction (Sec. \ref{sec:intro}). 
+\textit{Govind Mittal:} Implemented Memory Aware Synapses  (MAS) and Synaptic Intelligence  (SI) for BERT from scratch. Wrote the complete related work  (Sec. \ref{sec:related}, part of introduction  (Sec. \ref{sec:intro}) and paper reviewing. 
 
-\textit{Chandra Prakash Konkimalla*:} Implemented the baseline framework for finetuning the tasks one after another. Fixed bugs in EWC (Elastic Weight Consolidation) training procedure. Integrated Baseline and EWC into one code so that the results can be consistent. 
+\textit{Chandra Prakash Konkimalla:} Implemented the baseline framework for fine-tuning the tasks one after another. Fixed bugs in EWC  (Elastic Weight Consolidation) training procedure. Integrated Baseline and EWC into one code so that the results can be consistent. Ran all the experiments for EWC and MAS.
 
-\textit{Aakriti Gupta:} No contribution to team yet. Still working on SI.
+% \section*{Future Work}
 
-* = equal contribution
 \bibliography{paper}
 \bibliographystyle{acl_natbib}
 
@@ -303,7 +466,7 @@ The contributions of the authors, in the same order, are as follows:
 % including 
 % those for ACL 2018 by Shay Cohen, Kevin Gimpel, and Wei Lu, 
 % NAACL 2018 by Margaret Michell and Stephanie Lukin,
-% 2017/2018 (NA)ACL bibtex suggestions from Jason Eisner,
+% 2017/2018  (NA)ACL bibtex suggestions from Jason Eisner,
 % ACL 2017 by Dan Gildea and Min-Yen Kan, 
 % NAACL 2017 by Margaret Mitchell, 
 % ACL 2012 by Maggie Li and Michael White, 
@@ -329,7 +492,7 @@ The contributions of the authors, in the same order, are as follows:
 % Manuscripts must be in two-column format.  Exceptions to the
 % two-column format include the title, authors' names and complete
 % addresses, which must be centered at the top of the first page, and
-% any full-width figures or tables (see the guidelines in
+% any full-width figures or tables  (see the guidelines in
 % Subsection~\ref{ssec:first}). {\bf Type single-spaced.}  Start all
 % pages directly under the top margin. See the guidelines later
 % regarding formatting the first page.  The manuscript should be
@@ -340,10 +503,10 @@ The contributions of the authors, in the same order, are as follows:
 % By uncommenting {\small\verb|\aclfinalcopy|} at the top of this 
 %  document, it will compile to produce an example of the camera-ready formatting; by leaving it commented out, the document will be anonymized for initial submission.  When you first create your submission on softconf, please fill in your submitted paper ID where {\small\verb|***|} appears in the {\small\verb|\def\aclpaperid{***}|} definition at the top.
 
-% The review process is double-blind, so do not include any author information (names, addresses) when submitting a paper for review.  
-% However, you should maintain space for names and addresses so that they will fit in the final (accepted) version.  The NAACL-HLT 2019 \LaTeX\ style will create a titlebox space of 2.5in for you when {\small\verb|\aclfinalcopy|} is commented out.  
+% The review process is double-blind, so do not include any author information  (names, addresses) when submitting a paper for review.  
+% However, you should maintain space for names and addresses so that they will fit in the final  (accepted) version.  The NAACL-HLT 2019 \LaTeX\ style will create a titlebox space of 2.5in for you when {\small\verb|\aclfinalcopy|} is commented out.  
 
-% The author list for submissions should include all (and only) individuals who made substantial contributions to the work presented. Each author listed on a submission to NAACL-HLT 2019 will be notified of submissions, revisions and the final decision. No authors may be added to or removed from submissions to NAACL-HLT 2019 after the submission deadline.
+% The author list for submissions should include all  (and only) individuals who made substantial contributions to the work presented. Each author listed on a submission to NAACL-HLT 2019 will be notified of submissions, revisions and the final decision. No authors may be added to or removed from submissions to NAACL-HLT 2019 after the submission deadline.
 
 % \subsection{The Ruler}
 % The NAACL-HLT 2019 style defines a printed ruler which should be presented in the
@@ -353,21 +516,21 @@ The contributions of the authors, in the same order, are as follows:
 % style files, please arrange for an equivalent ruler to
 % appear on the final output pages.  The presence or absence of the ruler
 % should not change the appearance of any other content on the page.  The
-% camera ready copy should not contain a ruler. (\LaTeX\ users may uncomment the {\small\verb|\aclfinalcopy|} command in the document preamble.)  
+% camera ready copy should not contain a ruler.  (\LaTeX\ users may uncomment the {\small\verb|\aclfinalcopy|} command in the document preamble.)  
 
 % Reviewers: note that the ruler measurements do not align well with
 % lines in the paper -- this turns out to be very difficult to do well
 % when the paper contains many figures and equations, and, when done,
 % looks ugly. In most cases one would expect that the approximate
 % location will be adequate, although you can also use fractional
-% references ({\em e.g.}, the first paragraph on this page ends at mark $108.5$).
+% references  ({\em e.g.}, the first paragraph on this page ends at mark $108.5$).
 
 % \subsection{Electronically-available resources}
 
-% NAACL-HLT provides this description in \LaTeX2e{} ({\small\tt naaclhlt2019.tex}) and PDF
-% format ({\small\tt naaclhlt2019.pdf}), along with the \LaTeX2e{} style file used to
-% format it ({\small\tt naaclhlt2019.sty}) and an ACL bibliography style ({\small\tt acl\_natbib.bst})
-% and example bibliography ({\small\tt naaclhlt2019.bib}).
+% NAACL-HLT provides this description in \LaTeX2e{}  ({\small\tt naaclhlt2019.tex}) and PDF
+% format  ({\small\tt naaclhlt2019.pdf}), along with the \LaTeX2e{} style file used to
+% format it  ({\small\tt naaclhlt2019.sty}) and an ACL bibliography style  ({\small\tt acl\_natbib.bst})
+% and example bibliography  ({\small\tt naaclhlt2019.bib}).
 % These files are all available at
 % {\small\tt http://naacl2019.org/downloads/ naaclhlt2019-latex.zip}. 
 %  We
@@ -378,14 +541,14 @@ The contributions of the authors, in the same order, are as follows:
 % \label{sect:pdf}
 
 % For the production of the electronic manuscript you must use Adobe's
-% Portable Document Format (PDF). PDF files are usually produced from
+% Portable Document Format  (PDF). PDF files are usually produced from
 % \LaTeX\ using the \textit{pdflatex} command. If your version of
 % \LaTeX\ produces Postscript files, you can convert these into PDF
 % using \textit{ps2pdf} or \textit{dvipdf}. On Windows, you can also use
 % Adobe Distiller to generate PDF.
 
 % Please make sure that your PDF file includes all the necessary fonts
-% (especially tree diagrams, symbols, and fonts with Asian
+%  (especially tree diagrams, symbols, and fonts with Asian
 % characters). When you print or create the PDF file, there is usually
 % an option in your printer setup to include none, all or just
 % non-standard fonts.  Please make sure that you select the option of
@@ -398,11 +561,11 @@ The contributions of the authors, in the same order, are as follows:
 % printer, send your document to the printer specifying ``Output to a
 % file'', then convert the file to PDF.
 
-% It is of utmost importance to specify the \textbf{A4 format} (21 cm
+% It is of utmost importance to specify the \textbf{A4 format}  (21 cm
 % x 29.7 cm) when formatting the paper. When working with
 % {\tt dvips}, for instance, one should specify {\tt -t a4}.
 % Or using the command \verb|\special{papersize=210mm,297mm}| in the latex
-% preamble (directly below the \verb|\usepackage| commands). Then using 
+% preamble  (directly below the \verb|\usepackage| commands). Then using 
 % {\tt dvipdf} and/or {\tt pdflatex} which would make it easier for some.
 
 % Print-outs of the PDF file on A4 paper should be identical to the
@@ -443,7 +606,7 @@ The contributions of the authors, in the same order, are as follows:
 % \end{verbatim}
 % \end{quote}
 % in the preamble. If Times Roman is unavailable, use {\bf Computer
-%   Modern Roman} (\LaTeX2e{}'s default).  Note that the latter is about
+%   Modern Roman}  (\LaTeX2e{}'s default).  Note that the latter is about
 %   10\% less dense than Adobe's Times Roman font.
 
 % \begin{table}[t!]
@@ -469,21 +632,21 @@ The contributions of the authors, in the same order, are as follows:
 % \subsection{The First Page}
 % \label{ssec:first}
 
-% Center the title, author's name(s) and affiliation(s) across both
+% Center the title, author's name (s) and affiliation (s) across both
 % columns. Do not use footnotes for affiliations. Do not include the
 % paper ID number assigned during the submission process. Use the
 % two-column format only when you begin the abstract.
 
 % {\bf Title}: Place the title centered at the top of the first page, in
-% a 15-point bold font. (For a complete guide to font sizes and styles,
+% a 15-point bold font.  (For a complete guide to font sizes and styles,
 % see Table~\ref{font-table}) Long titles should be typed on two lines
 % without a blank line intervening. Approximately, put the title at 2.5
 % cm from the top of the page, followed by a blank line, then the
-% author's names(s), and the affiliation on the following line. Do not
-% use only initials for given names (middle initials are allowed). Do
-% not format surnames in all capitals ({\em e.g.}, use ``Mitchell'' not
+% author's names (s), and the affiliation on the following line. Do not
+% use only initials for given names  (middle initials are allowed). Do
+% not format surnames in all capitals  ({\em e.g.}, use ``Mitchell'' not
 % ``MITCHELL'').  Do not format title and section headings in all
-% capitals as well except for proper names (such as ``BLEU'') that are
+% capitals as well except for proper names  (such as ``BLEU'') that are
 % conventionally in all capitals.  The affiliation should contain the
 % author's complete address, and if possible, an electronic mail
 % address. Start the body of the first page 7.5 cm from the top of the
@@ -544,7 +707,7 @@ The contributions of the authors, in the same order, are as follows:
 % \subsection{Sections}
 
 % {\bf Headings}: Type and label section and subsection headings in the
-% style shown on the present document.  Use numbered sections (Arabic
+% style shown on the present document.  Use numbered sections  (Arabic
 % numerals) in order to facilitate cross references. Number subsections
 % with the section number and the subsection number separated by a dot,
 % in Arabic numerals.
@@ -588,8 +751,8 @@ The contributions of the authors, in the same order, are as follows:
 % \end{quote}
 
 % If you are using the provided \LaTeX{} and Bib\TeX{} style files, you
-% can use the command \verb|\citet| (cite in text)
-% to get ``author (year)'' citations.
+% can use the command \verb|\citet|  (cite in text)
+% to get ``author  (year)'' citations.
 
 % If the Bib\TeX{} file contains DOI fields, the paper
 % title in the references section will appear as a hyperlink
@@ -602,9 +765,9 @@ The contributions of the authors, in the same order, are as follows:
 % \textbf{Digital Object Identifiers}:  As part of our work to make ACL
 % materials more widely used and cited outside of our discipline, ACL
 % has registered as a CrossRef member, as a registrant of Digital Object
-% Identifiers (DOIs), the standard for registering permanent URNs for
+% Identifiers  (DOIs), the standard for registering permanent URNs for
 % referencing scholarly materials.  As of 2017, we are requiring all
-% camera-ready references to contain the appropriate DOIs (or as a
+% camera-ready references to contain the appropriate DOIs  (or as a
 % second resort, the hyperlinked ACL Anthology Identifier) to all cited
 % works.  Thus, please ensure that you use Bib\TeX\ records that contain
 % DOI or URLs for any of the ACL materials that you reference.
@@ -665,7 +828,7 @@ The contributions of the authors, in the same order, are as follows:
 % Submissions should accurately reference prior and related work, including code and data. If a piece of prior work appeared in multiple venues, the version that appeared in a refereed, archival venue should be referenced. If multiple versions of a piece of prior work exist, the one used by the authors should be referenced. Authors should not rely on automated citation indices to provide accurate references for prior and related work.
 
 % {\bf Appendices}: Appendices, if any, directly follow the text and the
-% references (but see above).  Letter them in sequence and provide an
+% references  (but see above).  Letter them in sequence and provide an
 % informative title: {\bf Appendix A. Title of Appendix}.
 
 % \subsection{Footnotes}
@@ -687,13 +850,13 @@ The contributions of the authors, in the same order, are as follows:
 % {\bf Captions}: Provide a caption for every illustration; number each one
 % sequentially in the form:  ``Figure 1. Caption of the Figure.'' ``Table 1.
 % Caption of the Table.''  Type the captions of the figures and 
-% tables below the body, using 10 point text. Captions should be placed below illustrations. Captions that are one line are centered (see Table~\ref{font-table}). Captions longer than one line are left-aligned (see Table~\ref{tab:accents}). Do not overwrite the default caption sizes. The naaclhlt2019.sty file is compatible with the caption and subcaption packages; do not add optional arguments.
+% tables below the body, using 10 point text. Captions should be placed below illustrations. Captions that are one line are centered  (see Table~\ref{font-table}). Captions longer than one line are left-aligned  (see Table~\ref{tab:accents}). Do not overwrite the default caption sizes. The naaclhlt2019.sty file is compatible with the caption and subcaption packages; do not add optional arguments.
 
 
 % \subsection{Accessibility}
 % \label{ssec:accessibility}
 
-% In an effort to accommodate people who are color-blind (as well as those printing
+% In an effort to accommodate people who are color-blind  (as well as those printing
 % to paper), grayscale readability for all accepted papers will be
 % encouraged.  Color is not forbidden, but authors should ensure that
 % tables and figures do not rely solely on color to convey critical
@@ -715,7 +878,7 @@ The contributions of the authors, in the same order, are as follows:
 % %% We encourage you to submit a ZIP file of your \LaTeX\ sources along
 % %% with the camera-ready version of your paper. We will then convert them
 % %% to XML automatically, using the LaTeXML tool
-% %% (\url{http://dlmf.nist.gov/LaTeXML}). LaTeXML has \emph{bindings} for
+% %%  (\url{http://dlmf.nist.gov/LaTeXML}). LaTeXML has \emph{bindings} for
 % %% a number of \LaTeX\ packages, including the ACL 2018 stylefile. These
 % %% bindings allow LaTeXML to render the commands from these packages
 % %% correctly in XML. For best results, we encourage you to use the
@@ -736,13 +899,13 @@ The contributions of the authors, in the same order, are as follows:
 
 % The NAACL-HLT 2019 main conference accepts submissions of long papers and
 % short papers.
-%  Long papers may consist of up to eight (8) pages of
+%  Long papers may consist of up to eight  (8) pages of
 % content plus unlimited pages for references. Upon acceptance, final
-% versions of long papers will be given one additional page -- up to nine (9)
+% versions of long papers will be given one additional page -- up to nine  (9)
 % pages of content plus unlimited pages for references -- so that reviewers' comments
-% can be taken into account. Short papers may consist of up to four (4)
+% can be taken into account. Short papers may consist of up to four  (4)
 % pages of content, plus unlimited pages for references. Upon
-% acceptance, short papers will be given five (5) pages in the
+% acceptance, short papers will be given five  (5) pages in the
 % proceedings and unlimited pages for references. 
 % For both long and short papers, all illustrations and tables that are part
 % of the main text must be accommodated within these page limits, observing
@@ -783,13 +946,13 @@ The contributions of the authors, in the same order, are as follows:
 % \label{sec:supplemental}
 % Submissions may include non-readable supplementary material used in the work and described in the paper. Any accompanying software and/or data should include licenses and documentation of research review as appropriate. Supplementary material may report preprocessing decisions, model parameters, and other details necessary for the replication of the experiments reported in the paper. Seemingly small preprocessing decisions can sometimes make a large difference in performance, so it is crucial to record such decisions to precisely characterize state-of-the-art methods. 
 
-% Nonetheless, supplementary material should be supplementary (rather
+% Nonetheless, supplementary material should be supplementary  (rather
 % than central) to the paper. {\bf Submissions that misuse the supplementary 
 % material may be rejected without review.}
 % Supplementary material may include explanations or details
 % of proofs or derivations that do not fit into the paper, lists of
 % features or feature templates, sample inputs and outputs for a system,
-% pseudo-code or source code, and data. (Source code and data should
+% pseudo-code or source code, and data.  (Source code and data should
 % be separate uploads, rather than part of the paper).
 
 % The paper should not rely on the supplementary material: while the paper
