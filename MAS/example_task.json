@@ -1,5 +1,5 @@
 {
-	"mrpc": 
+	"rte":
 	{
 		"learning_rate": 5e-5,
 		"weight_decay" : 0.0,
@@ -9,7 +9,7 @@
 		"save_steps": 500,
 		"output_mode" : "classification"
 	},
-	"rte": 
+	"mrpc":
 	{
 		"learning_rate": 5e-5,
 		"weight_decay" : 0.0,

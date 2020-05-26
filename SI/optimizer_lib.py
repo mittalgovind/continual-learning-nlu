@@ -41,7 +41,6 @@ class local_AdamW(optim.Optimizer):
         loss = None
         if closure is not None:
             loss = closure()
-
         for group in self.param_groups:
             for index, p in enumerate(group["params"]):
                 name = group["names"][index]
@@ -86,9 +85,10 @@ class local_AdamW(optim.Optimizer):
                     importance_grad = torch.mul(param_diff, 2 * self.reg_lambda * big_omega)
 
                     # update small omega
+                    prev_size = batch_size * batch_index
                     current_size = (batch_index + 1) * batch_size
-                    small_omega_update = torch.mul(grad, param_diff)
-                    small_omega_update = torch.sub(small_omega_update, batch_size * batch_index * small_omega)
+                    small_omega_update = torch.mul(grad, torch.add(grad, importance_grad))
+                    small_omega_update = torch.sub(small_omega_update, lr * prev_size * small_omega)
                     small_omega_update = torch.div(small_omega_update, float(current_size))
                     param_dict['small_omega'] = torch.sub(small_omega, small_omega_update)
                     reg_params[name] = param_dict
@@ -122,7 +122,6 @@ class local_AdamW(optim.Optimizer):
                 # Add weight decay at the end (fixed version)
                 if group["weight_decay"] > 0.0:
                     p.data.add_(-group["lr"] * group["weight_decay"], p.data)
-
         return loss
 
 
